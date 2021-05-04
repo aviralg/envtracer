@@ -11,6 +11,7 @@
 #include "ArgumentReflectionTable.h"
 #include "CallReflectionTable.h"
 #include "Backtrace.h"
+#include "EnvironmentAccessTable.h"
 #include <instrumentr/instrumentr.h>
 
 class TracingState {
@@ -90,6 +91,14 @@ class TracingState {
         return backtrace_;
     }
 
+    EnvironmentAccessTable& get_environment_access_table() {
+        return env_access_table_;
+    }
+
+    const EnvironmentAccessTable& get_environment_access_table() const {
+        return env_access_table_;
+    }
+
     static void initialize(instrumentr_state_t state);
 
     static void finalize(instrumentr_state_t state);
@@ -106,6 +115,7 @@ class TracingState {
     ArgumentReflectionTable arg_ref_tab_;
     CallReflectionTable call_ref_tab_;
     Backtrace backtrace_;
+    EnvironmentAccessTable env_access_table_;
 };
 
 #endif /* ENVTRACER_TRACING_STATE_H */

@@ -2,6 +2,14 @@
 
 const std::string ENVTRACER_NA_STRING("***ENVTRACER_NA_STRING***");
 
+std::string get_sexp_type(SEXP r_value) {
+    if (r_value == R_UnboundValue) {
+        return ENVTRACER_NA_STRING;
+    } else {
+        return type2char(TYPEOF(r_value));
+    }
+}
+
 std::string get_type_as_string(SEXP r_object) {
     return type2char(TYPEOF(r_object));
 }

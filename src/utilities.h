@@ -7,6 +7,13 @@
 
 extern const std::string ENVTRACER_NA_STRING;
 
+extern "C" {
+extern SEXP R_WhichSymbol;
+extern SEXP R_NSymbol;
+}
+
+std::string get_sexp_type(SEXP r_value);
+
 std::string get_type_as_string(SEXP r_object);
 
 SEXP integer_vector_wrap(const std::vector<int>& vector);

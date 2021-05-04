@@ -5,14 +5,6 @@
 #include <instrumentr/instrumentr.h>
 #include <vector>
 
-std::string get_sexp_type(SEXP r_value) {
-    if (r_value == R_UnboundValue) {
-        return ENVTRACER_NA_STRING;
-    } else {
-        return type2char(TYPEOF(r_value));
-    }
-}
-
 void mark_promises(int ref_call_id,
                    const std::string& ref_type,
                    ArgumentTable& arg_tab,
@@ -192,12 +184,144 @@ bool has_minus_one_argument(instrumentr_call_t call) {
     return valid;
 }
 
+void builtin_environment_access(instrumentr_call_t call,
+                                instrumentr_builtin_t builtin,
+                                EnvironmentAccessTable& env_access_table) {
+    const char* name = instrumentr_builtin_get_name(builtin);
+
+    if (name == NULL) {
+        return;
+    }
+
+    std::string fun_name = name;
+
+    if (fun_name != "as.environment" && fun_name != "pos.to.env") {
+        return;
+    }
+
+    int call_id = instrumentr_call_get_id(call);
+
+    instrumentr_value_t arguments = instrumentr_call_get_arguments(call);
+    SEXP r_arguments = instrumentr_value_get_sexp(arguments);
+    SEXP r_x = CAR(r_arguments);
+
+    std::string x_type = get_sexp_type(r_x);
+
+    EnvironmentAccess* env_access = nullptr;
+
+    if (x_type == "integer") {
+        env_access = EnvironmentAccess::XInt(
+            call_id, fun_name, x_type, INTEGER_ELT(r_x, 0));
+    } else if (x_type == "double") {
+        env_access = EnvironmentAccess::XInt(
+            call_id, fun_name, x_type, REAL_ELT(r_x, 0));
+    } else if (x_type == "character") {
+        env_access = EnvironmentAccess::XChar(
+            call_id, fun_name, x_type, CHAR(STRING_ELT(r_x, 0)));
+    } else {
+        env_access = new EnvironmentAccess(call_id, fun_name, x_type);
+    }
+
+    if (env_access != nullptr) {
+        env_access_table.insert(env_access);
+    }
+}
+
+void closure_environment_access(instrumentr_call_t call,
+                                instrumentr_closure_t closure,
+                                EnvironmentAccessTable& env_access_table) {
+    const char* name = instrumentr_closure_get_name(closure);
+
+    if (name == NULL) {
+        return;
+    }
+
+    std::string fun_name = name;
+
+    int call_id = instrumentr_call_get_id(call);
+
+    EnvironmentAccess* env_access = nullptr;
+    instrumentr_environment_t env = instrumentr_call_get_environment(call);
+    SEXP r_env = instrumentr_environment_get_sexp(env);
+
+    if (fun_name == "sys.call" || fun_name == "sys.frame" ||
+        fun_name == "sys.function") {
+        SEXP r_which = Rf_findVarInFrame(r_env, R_WhichSymbol);
+
+        if (TYPEOF(r_which) == PROMSXP) {
+            r_which = dyntrace_get_promise_value(r_which);
+        }
+
+        int which = NA_INTEGER;
+
+        const std::string arg_type = get_sexp_type(r_which);
+
+        if (TYPEOF(r_which) == REALSXP) {
+            which = REAL_ELT(r_which, 0);
+        }
+
+        else if (TYPEOF(r_which) == INTSXP) {
+            which = INTEGER_ELT(r_which, 0);
+        }
+
+        else {
+            Rf_error("incorrect type of which: %s",
+                     get_sexp_type(r_which).c_str());
+        }
+
+        env_access =
+            EnvironmentAccess::Which(call_id, fun_name, arg_type, which);
+
+    } else if (fun_name == "sys.parent" || fun_name == "parent.frame") {
+        SEXP r_n = Rf_findVarInFrame(r_env, R_NSymbol);
+
+        if (TYPEOF(r_n) == PROMSXP) {
+            r_n = dyntrace_get_promise_value(r_n);
+        }
+
+        const std::string arg_type = get_sexp_type(r_n);
+
+        int n = NA_INTEGER;
+
+        if (TYPEOF(r_n) == REALSXP) {
+            n = REAL_ELT(r_n, 0);
+        }
+
+        else if (TYPEOF(r_n) == INTSXP) {
+            n = INTEGER_ELT(r_n, 0);
+        }
+
+        else {
+            Rf_error("incorrect type of n: %s", get_sexp_type(r_n).c_str());
+        }
+
+        env_access = EnvironmentAccess::N(call_id, fun_name, arg_type, n);
+
+    } else if (fun_name == "sys.calls" || fun_name == "sys.frames" ||
+               fun_name == "sys.parents" || fun_name == "sys.on.exit" ||
+               fun_name == "sys.status" || fun_name == "sys.nframe") {
+        env_access =
+            new EnvironmentAccess(call_id, fun_name, ENVTRACER_NA_STRING);
+    }
+
+    if (env_access != nullptr) {
+        env_access_table.insert(env_access);
+    }
+}
+
 void builtin_call_exit_callback(instrumentr_tracer_t tracer,
                                 instrumentr_callback_t callback,
                                 instrumentr_state_t state,
                                 instrumentr_application_t application,
                                 instrumentr_builtin_t builtin,
                                 instrumentr_call_t call) {
+    TracingState& tracing_state = TracingState::lookup(state);
+
+    EnvironmentAccessTable& env_access_table =
+        tracing_state.get_environment_access_table();
+
+    builtin_environment_access(call, builtin, env_access_table);
+
     std::string ref_type = instrumentr_builtin_get_name(builtin);
     int ref_call_id = instrumentr_call_get_id(call);
 
@@ -210,8 +334,6 @@ void builtin_call_exit_callback(instrumentr_tracer_t tracer,
     if (!has_minus_one_argument(call)) {
         return;
     }
-
-    TracingState& tracing_state = TracingState::lookup(state);
 
     ArgumentTable& arg_tab = tracing_state.get_argument_table();
     CallTable& call_tab = tracing_state.get_call_table();
@@ -412,6 +534,13 @@ void closure_call_exit_callback(instrumentr_tracer_t tracer,
     Backtrace& backtrace = tracing_state.get_backtrace();
 
     backtrace.pop();
+
+    /* handle arguments */
+
+    EnvironmentAccessTable& env_access_table =
+        tracing_state.get_environment_access_table();
+
+    closure_environment_access(call, closure, env_access_table);
 }
 
 void compute_meta_depth(instrumentr_state_t state,
@@ -460,8 +589,8 @@ void compute_meta_depth(instrumentr_state_t state,
                               sink_call_id,
                               meta_depth);
 
-            /* NOTE: expression metaprogramming happens even when substitute is
-               called. calling this for substitute will double count
+            /* NOTE: expression metaprogramming happens even when substitute
+               is called. calling this for substitute will double count
                metaprogramming. */
             if (meta_type == "expression") {
                 argument->metaprogram(meta_depth);
@@ -858,10 +987,10 @@ void process_reads(instrumentr_state_t state,
         }
 
         // This means the environment has been modified after the promise is
-        // created but before it is forced and while forcing, this promise is
-        // reading from the environment. Since this read can potentially be from
-        // the modified location, we should mark it as non local and make the
-        // argument lazy.
+        // created but before it is forced and while forcing, this promise
+        // is reading from the environment. Since this read can potentially
+        // be from the modified location, we should mark it as non local and
+        // make the argument lazy.
         if (!transitive && (t2 > t1 && t2 < t3)) {
             const std::vector<Argument*>& args =
                 argument_table.lookup(promise_id);
@@ -896,10 +1025,10 @@ void process_reads(instrumentr_state_t state,
             transitive = true;
         }
 
-        /* if transitive is set, then the promise directly responsible for the
-         * effect has already been found and handled. All other promises on the
-         * stack are transitively responsible for forcing it and have to be made
-         * lazy. */
+        /* if transitive is set, then the promise directly responsible for
+         * the effect has already been found and handled. All other promises
+         * on the stack are transitively responsible for forcing it and have
+         * to be made lazy. */
         if (transitive) {
             const std::vector<Argument*>& args =
                 argument_table.lookup(promise_id);
@@ -1041,8 +1170,8 @@ void process_writes(instrumentr_state_t state,
         int promise_id = instrumentr_promise_get_id(promise);
         int t1 = instrumentr_promise_get_force_entry_time(promise);
 
-        /* if environment is born inside the the currently forced promise, then
-         * effect is contained inside the promise and we can exit */
+        /* if environment is born inside the the currently forced promise,
+         * then effect is contained inside the promise and we can exit */
         if (t2 > t1) {
             return;
         }
