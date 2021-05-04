@@ -11,6 +11,8 @@ class EnvironmentAccess {
                       const std::string& arg_type)
         : call_id_(call_id)
         , fun_name_(fun_name)
+        , source_fun_id_(NA_INTEGER)
+        , source_call_id_(NA_INTEGER)
         , arg_type_(arg_type)
         , n_(NA_INTEGER)
         , which_(NA_INTEGER)
@@ -58,9 +60,16 @@ class EnvironmentAccess {
         x_char_ = x_char;
     }
 
+    void set_source(int source_fun_id, int source_call_id) {
+        source_fun_id_ = source_fun_id;
+        source_call_id_ = source_call_id;
+    }
+
     void to_sexp(int position,
                  SEXP r_call_id,
                  SEXP r_fun_name,
+                 SEXP r_source_fun_id,
+                 SEXP r_source_call_id,
                  SEXP r_arg_type,
                  SEXP r_n,
                  SEXP r_which,
@@ -68,6 +77,8 @@ class EnvironmentAccess {
                  SEXP r_x_char) {
         SET_INTEGER_ELT(r_call_id, position, call_id_);
         SET_STRING_ELT(r_fun_name, position, make_char(fun_name_));
+        SET_INTEGER_ELT(r_source_fun_id, position, source_fun_id_);
+        SET_INTEGER_ELT(r_source_call_id, position, source_call_id_);
         SET_STRING_ELT(r_arg_type, position, make_char(arg_type_));
         SET_INTEGER_ELT(r_n, position, n_);
         SET_INTEGER_ELT(r_which, position, which_);
@@ -98,6 +109,8 @@ class EnvironmentAccess {
   private:
     int call_id_;
     std::string fun_name_;
+    int source_fun_id_;
+    int source_call_id_;
     std::string arg_type_;
     int n_;
     int which_;

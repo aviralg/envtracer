@@ -184,7 +184,52 @@ bool has_minus_one_argument(instrumentr_call_t call) {
     return valid;
 }
 
-void builtin_environment_access(instrumentr_call_t call,
+void update_source(instrumentr_call_stack_t call_stack,
+                   EnvironmentAccess* env_access) {
+    int env_id = NA_INTEGER;
+
+    for (int i = 1; i < instrumentr_call_stack_get_size(call_stack); ++i) {
+        instrumentr_frame_t frame =
+            instrumentr_call_stack_peek_frame(call_stack, i);
+
+        if (instrumentr_frame_is_promise(frame) && env_id == NA_INTEGER) {
+            instrumentr_promise_t promise = instrumentr_frame_as_promise(frame);
+            instrumentr_value_t env =
+                instrumentr_promise_get_environment(promise);
+
+            if (instrumentr_value_is_environment(env)) {
+                env_id = instrumentr_value_get_id(env);
+            }
+        }
+
+        if (instrumentr_frame_is_call(frame)) {
+            instrumentr_call_t call = instrumentr_frame_as_call(frame);
+
+            instrumentr_value_t fun = instrumentr_call_get_function(call);
+
+            if (!instrumentr_value_is_closure(fun)) {
+                continue;
+            }
+
+            instrumentr_closure_t closure = instrumentr_value_as_closure(fun);
+
+            instrumentr_environment_t env =
+                instrumentr_call_get_environment(call);
+
+            int cur_env_id = instrumentr_environment_get_id(env);
+
+            if (env_id == NA_INTEGER || cur_env_id == env_id) {
+                env_access->set_source(instrumentr_closure_get_id(closure),
+                                       instrumentr_call_get_id(call));
+
+                break;
+            }
+        }
+    }
+}
+
+void builtin_environment_access(instrumentr_call_stack_t call_stack,
+                                instrumentr_call_t call,
                                 instrumentr_builtin_t builtin,
                                 EnvironmentAccessTable& env_access_table) {
     const char* name = instrumentr_builtin_get_name(builtin);
@@ -223,11 +268,13 @@ void builtin_environment_access(instrumentr_call_t call,
     }
 
     if (env_access != nullptr) {
+        update_source(call_stack, env_access);
         env_access_table.insert(env_access);
     }
 }
 
-void closure_environment_access(instrumentr_call_t call,
+void closure_environment_access(instrumentr_call_stack_t call_stack,
+                                instrumentr_call_t call,
                                 instrumentr_closure_t closure,
                                 EnvironmentAccessTable& env_access_table) {
     const char* name = instrumentr_closure_get_name(closure);
@@ -305,6 +352,7 @@ void closure_environment_access(instrumentr_call_t call,
     }
 
     if (env_access != nullptr) {
+        update_source(call_stack, env_access);
         env_access_table.insert(env_access);
     }
 }
@@ -320,7 +368,10 @@ void builtin_call_exit_callback(instrumentr_tracer_t tracer,
     EnvironmentAccessTable& env_access_table =
         tracing_state.get_environment_access_table();
 
-    builtin_environment_access(call, builtin, env_access_table);
+    instrumentr_call_stack_t call_stack =
+        instrumentr_state_get_call_stack(state);
+
+    builtin_environment_access(call_stack, call, builtin, env_access_table);
 
     std::string ref_type = instrumentr_builtin_get_name(builtin);
     int ref_call_id = instrumentr_call_get_id(call);
@@ -340,9 +391,6 @@ void builtin_call_exit_callback(instrumentr_tracer_t tracer,
     ArgumentReflectionTable& arg_ref_tab = tracing_state.get_arg_ref_tab();
     CallReflectionTable& call_ref_tab = tracing_state.get_call_ref_tab();
     Backtrace& backtrace = tracing_state.get_backtrace();
-
-    instrumentr_call_stack_t call_stack =
-        instrumentr_state_get_call_stack(state);
 
     mark_promises(
         ref_call_id, ref_type, arg_tab, arg_ref_tab, call_stack, backtrace);
@@ -540,7 +588,9 @@ void closure_call_exit_callback(instrumentr_tracer_t tracer,
     EnvironmentAccessTable& env_access_table =
         tracing_state.get_environment_access_table();
 
-    closure_environment_access(call, closure, env_access_table);
+    instrumentr_call_stack_t call_stack =
+        instrumentr_state_get_call_stack(state);
+    closure_environment_access(call_stack, call, closure, env_access_table);
 }
 
 void compute_meta_depth(instrumentr_state_t state,

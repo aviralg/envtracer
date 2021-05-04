@@ -38,6 +38,8 @@ class EnvironmentAccessTable {
 
         SEXP r_call_id = PROTECT(allocVector(INTSXP, size));
         SEXP r_fun_name = PROTECT(allocVector(STRSXP, size));
+        SEXP r_source_fun_id = PROTECT(allocVector(INTSXP, size));
+        SEXP r_source_call_id = PROTECT(allocVector(INTSXP, size));
         SEXP r_arg_type = PROTECT(allocVector(STRSXP, size));
         SEXP r_n = PROTECT(allocVector(INTSXP, size));
         SEXP r_which = PROTECT(allocVector(INTSXP, size));
@@ -52,6 +54,8 @@ class EnvironmentAccessTable {
             env_access->to_sexp(index,
                                 r_call_id,
                                 r_fun_name,
+                                r_source_fun_id,
+                                r_source_call_id,
                                 r_arg_type,
                                 r_n,
                                 r_which,
@@ -61,6 +65,8 @@ class EnvironmentAccessTable {
 
         std::vector<SEXP> columns({r_call_id,
                                    r_fun_name,
+                                   r_source_fun_id,
+                                   r_source_call_id,
                                    r_arg_type,
                                    r_n,
                                    r_which,
@@ -69,6 +75,8 @@ class EnvironmentAccessTable {
 
         std::vector<std::string> names({"call_id",
                                         "fun_name",
+                                        "source_fun_id",
+                                        "source_call_id",
                                         "arg_type",
                                         "n",
                                         "which",
@@ -77,7 +85,7 @@ class EnvironmentAccessTable {
 
         SEXP df = create_data_frame(names, columns);
 
-        UNPROTECT(7);
+        UNPROTECT(9);
 
         return df;
     }
