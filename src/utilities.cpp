@@ -47,7 +47,7 @@ SEXP character_vector_wrap(const std::vector<std::string>& vector) {
         SET_STRING_ELT(r_vector,
                        i,
                        value == ENVTRACER_NA_STRING ? NA_STRING
-                                               : mkChar(value.c_str()));
+                                                    : mkChar(value.c_str()));
     }
 
     UNPROTECT(1);
@@ -100,6 +100,23 @@ SEXP create_data_frame(const std::vector<std::string>& names,
 
 SEXP make_char(const std::string& input) {
     return input == ENVTRACER_NA_STRING ? NA_STRING : mkChar(input.c_str());
+}
+
+SEXP make_char(const std::vector<std::string>& inputs) {
+    std::string input("");
+    if (inputs.size() != 0) {
+        input.append(inputs[0]);
+    }
+
+    for (int i = 1; i < inputs.size(); ++i) {
+        input.append("|").append(inputs[i]);
+    }
+
+    if (input == "") {
+        input = ENVTRACER_NA_STRING;
+    }
+
+    return make_char(input);
 }
 
 std::string charptr_to_string(const char* charptr) {

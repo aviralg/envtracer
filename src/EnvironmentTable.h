@@ -65,25 +65,56 @@ class EnvironmentTable {
         SEXP r_env_type = PROTECT(allocVector(STRSXP, size));
         SEXP r_env_name = PROTECT(allocVector(STRSXP, size));
         SEXP r_call_id = PROTECT(allocVector(INTSXP, size));
+        SEXP r_classes = PROTECT(allocVector(STRSXP, size));
+        SEXP r_evals = PROTECT(allocVector(STRSXP, size));
+        SEXP r_package = PROTECT(allocVector(STRSXP, size));
+        SEXP r_constructor = PROTECT(allocVector(STRSXP, size));
+        SEXP r_source_fun_id = PROTECT(allocVector(INTSXP, size));
+        SEXP r_source_call_id = PROTECT(allocVector(INTSXP, size));
 
         int index = 0;
         for (auto iter = table_.begin(); iter != table_.end();
              ++iter, ++index) {
             Environment* environment = iter->second;
 
-            environment->to_sexp(
-                index, r_env_id, r_env_type, r_env_name, r_call_id);
+            environment->to_sexp(index,
+                                 r_env_id,
+                                 r_env_type,
+                                 r_env_name,
+                                 r_call_id,
+                                 r_classes,
+                                 r_evals,
+                                 r_package,
+                                 r_constructor,
+                                 r_source_fun_id,
+                                 r_source_call_id);
         }
 
-        std::vector<SEXP> columns(
-            {r_env_id, r_env_type, r_env_name, r_call_id});
+        std::vector<SEXP> columns({r_env_id,
+                                   r_env_type,
+                                   r_env_name,
+                                   r_call_id,
+                                   r_classes,
+                                   r_evals,
+                                   r_package,
+                                   r_constructor,
+                                   r_source_fun_id,
+                                   r_source_call_id});
 
-        std::vector<std::string> names(
-            {"env_id", "env_type", "env_name", "call_id"});
+        std::vector<std::string> names({"env_id",
+                                        "env_type",
+                                        "env_name",
+                                        "call_id",
+                                        "class",
+                                        "eval",
+                                        "package",
+                                        "constructor",
+                                        "source_fun_id",
+                                        "source_call_id"});
 
         SEXP df = create_data_frame(names, columns);
 
-        UNPROTECT(4);
+        UNPROTECT(10);
 
         return df;
     }

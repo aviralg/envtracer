@@ -11,6 +11,18 @@ void tracing_exit_callback(instrumentr_tracer_t tracer,
                            instrumentr_callback_t callback,
                            instrumentr_state_t state);
 
+void package_load_callback(instrumentr_tracer_t tracer,
+                           instrumentr_callback_t callback,
+                           instrumentr_state_t state,
+                           instrumentr_application_t application,
+                           instrumentr_environment_t environment);
+
+void package_attach_callback(instrumentr_tracer_t tracer,
+                             instrumentr_callback_t callback,
+                             instrumentr_state_t state,
+                             instrumentr_application_t application,
+                             instrumentr_environment_t environment);
+
 void closure_call_entry_callback(instrumentr_tracer_t tracer,
                                  instrumentr_callback_t callback,
                                  instrumentr_state_t state,
@@ -112,5 +124,13 @@ void trace_error(instrumentr_tracer_t tracer,
                  instrumentr_state_t state,
                  instrumentr_application_t application,
                  instrumentr_value_t call_expr);
+
+void attribute_set_callback(instrumentr_tracer_t tracer,
+                            instrumentr_callback_t callback,
+                            instrumentr_state_t state,
+                            instrumentr_application_t application,
+                            instrumentr_value_t object,
+                            instrumentr_symbol_t name,
+                            instrumentr_value_t value);
 
 #endif /* ENVTRACER_CALLBACKS_H  */

@@ -31,6 +31,8 @@ SEXP create_data_frame(const std::vector<std::string>& names,
 
 SEXP make_char(const std::string& input);
 
+SEXP make_char(const std::vector<std::string>& inputs);
+
 std::string charptr_to_string(const char* charptr);
 
 std::string to_string(const std::vector<std::pair<std::string, int>>& seq);

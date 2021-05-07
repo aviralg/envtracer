@@ -5,6 +5,60 @@
 #include <instrumentr/instrumentr.h>
 #include <vector>
 
+void analyze_package_environment(instrumentr_state_t state,
+                                 EnvironmentTable& env_table,
+                                 instrumentr_environment_t environment,
+                                 const std::string& name) {
+    Environment* env = env_table.insert(environment);
+
+    if (env->is_package()) {
+        return;
+    }
+
+    env->set_package(name);
+
+    SEXP r_names = PROTECT(
+        R_lsInternal(instrumentr_environment_get_sexp(environment), TRUE));
+
+    for (int i = 0; i < Rf_length(r_names); ++i) {
+        const char* binding_name = CHAR(STRING_ELT(r_names, i));
+        instrumentr_symbol_t binding_sym =
+            instrumentr_state_get_symbol(state, binding_name);
+        instrumentr_value_t value =
+            instrumentr_environment_lookup(environment, binding_sym);
+
+        if (instrumentr_value_is_environment(value)) {
+            const std::string new_name =
+                name + "::" + std::string(binding_name);
+            analyze_package_environment(state,
+                                        env_table,
+                                        instrumentr_value_as_environment(value),
+                                        new_name);
+        }
+    }
+    UNPROTECT(1);
+}
+
+void package_load_callback(instrumentr_tracer_t tracer,
+                           instrumentr_callback_t callback,
+                           instrumentr_state_t state,
+                           instrumentr_application_t application,
+                           instrumentr_environment_t environment) {
+    TracingState& tracing_state = TracingState::lookup(state);
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+    analyze_package_environment(state, env_table, environment, "namespace");
+}
+
+void package_attach_callback(instrumentr_tracer_t tracer,
+                             instrumentr_callback_t callback,
+                             instrumentr_state_t state,
+                             instrumentr_application_t application,
+                             instrumentr_environment_t environment) {
+    TracingState& tracing_state = TracingState::lookup(state);
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+    analyze_package_environment(state, env_table, environment, "package");
+}
+
 void mark_promises(int ref_call_id,
                    const std::string& ref_type,
                    ArgumentTable& arg_tab,
@@ -184,8 +238,7 @@ bool has_minus_one_argument(instrumentr_call_t call) {
     return valid;
 }
 
-void update_source(instrumentr_call_stack_t call_stack,
-                   EnvironmentAccess* env_access) {
+instrumentr_call_t get_caller(instrumentr_call_stack_t call_stack) {
     int env_id = NA_INTEGER;
 
     for (int i = 1; i < instrumentr_call_stack_get_size(call_stack); ++i) {
@@ -219,13 +272,27 @@ void update_source(instrumentr_call_stack_t call_stack,
             int cur_env_id = instrumentr_environment_get_id(env);
 
             if (env_id == NA_INTEGER || cur_env_id == env_id) {
-                env_access->set_source(instrumentr_closure_get_id(closure),
-                                       instrumentr_call_get_id(call));
-
-                break;
+                return call;
             }
         }
     }
+
+    return nullptr;
+}
+
+void update_source(instrumentr_call_stack_t call_stack,
+                   EnvironmentAccess* env_access) {
+    instrumentr_call_t call = get_caller(call_stack);
+
+    if (call == nullptr) {
+        return;
+    }
+
+    instrumentr_value_t fun = instrumentr_call_get_function(call);
+    instrumentr_closure_t closure = instrumentr_value_as_closure(fun);
+
+    env_access->set_source(instrumentr_closure_get_id(closure),
+                           instrumentr_call_get_id(call));
 }
 
 void builtin_environment_access(instrumentr_call_stack_t call_stack,
@@ -550,6 +617,115 @@ void closure_call_entry_callback(instrumentr_tracer_t tracer,
     backtrace.push(call);
 }
 
+// void handle_call_result(instrumentr_closure_t closure,
+//                        instrumentr_call_t call,
+//                        EnvironmentTable& env_table) {
+//    if (!instrumentr_call_has_result(call)) {
+//        return;
+//    }
+//
+//    instrumentr_value_t result = instrumentr_call_get_result(call);
+//
+//    handle_environment(result, env_table);
+//}
+//
+// void handle_environment(instrumentr_value_t value,
+//                        EnvironmentTable& env_table) {
+//    Environment* env = env_table;
+//
+//    if (instrumentr_value_is_environment(result)) {
+//        Environment* env =
+//            env_table.insert(instrumentr_value_as_environment(result));
+//
+//        SEXP r_classes =
+//            Rf_getAttrib(instrumentr_value_get_sexp(result), R_ClassSymbol);
+//
+//        if (r_classes != R_NilValue && TYPEOF(r_classes) == STRSXP) {
+//            for (int i = 0; i < Rf_length(r_classes); ++i) {
+//                SEXP r_class = STRING_ELT(r_classes, i);
+//                if (r_class != NA_STRING) {
+//                    env->update_class(CHAR(r_class));
+//                }
+//            }
+//        }
+//    }
+//
+//    else if (instrumentr_value_is_environment(result))
+//}
+
+void inspect_environments(instrumentr_state_t state,
+                          instrumentr_closure_t closure,
+                          instrumentr_call_t call,
+                          EnvironmentTable& env_table) {
+    if (!instrumentr_closure_has_name(closure)) {
+        return;
+    }
+
+    const std::string name(instrumentr_closure_get_name(closure));
+
+    if (name == "eval" || name == "evalq") {
+        instrumentr_environment_t call_env =
+            instrumentr_call_get_environment(call);
+
+        instrumentr_symbol_t envir_sym =
+            instrumentr_state_get_symbol(state, "envir");
+
+        instrumentr_value_t eval_env =
+            instrumentr_environment_lookup(call_env, envir_sym);
+
+        if (instrumentr_value_is_promise(eval_env)) {
+            instrumentr_promise_t eval_env_prom =
+                instrumentr_value_as_promise(eval_env);
+            instrumentr_value_t val =
+                instrumentr_promise_get_value(eval_env_prom);
+
+            if (instrumentr_value_is_environment(val)) {
+                Environment* env =
+                    env_table.insert(instrumentr_value_as_environment(val));
+                env->add_eval("eval");
+            }
+        }
+    }
+
+    if (name == "new.env" || name == "list2env") {
+        if (instrumentr_call_has_result(call)) {
+            instrumentr_value_t result = instrumentr_call_get_result(call);
+
+            if (instrumentr_value_is_environment(result)) {
+                instrumentr_environment_t environment =
+                    instrumentr_value_as_environment(result);
+
+                instrumentr_call_t caller =
+                    get_caller(instrumentr_state_get_call_stack(state));
+
+                int closure_id = NA_INTEGER;
+                int call_id = NA_INTEGER;
+
+                if (caller != nullptr) {
+                    instrumentr_call_stack_t call_stack =
+                        instrumentr_state_get_call_stack(state);
+                    instrumentr_call_t call = get_caller(call_stack);
+
+                    if (call == nullptr) {
+                        return;
+                    }
+
+                    instrumentr_value_t fun =
+                        instrumentr_call_get_function(call);
+                    instrumentr_closure_t closure =
+                        instrumentr_value_as_closure(fun);
+
+                    closure_id = instrumentr_closure_get_id(closure),
+                    call_id = instrumentr_call_get_id(call);
+                }
+
+                Environment* env = env_table.insert(environment);
+                env->set_source(name, closure_id, call_id);
+            }
+        }
+    }
+}
+
 void closure_call_exit_callback(instrumentr_tracer_t tracer,
                                 instrumentr_callback_t callback,
                                 instrumentr_state_t state,
@@ -591,6 +767,11 @@ void closure_call_exit_callback(instrumentr_tracer_t tracer,
     instrumentr_call_stack_t call_stack =
         instrumentr_state_get_call_stack(state);
     closure_environment_access(call_stack, call, closure, env_access_table);
+
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+    inspect_environments(state, closure, call, env_table);
+    //
+    // handle_call_result(closure, call, env_table);
 }
 
 void compute_meta_depth(instrumentr_state_t state,
@@ -966,6 +1147,23 @@ void tracing_entry_callback(instrumentr_tracer_t tracer,
                             instrumentr_callback_t callback,
                             instrumentr_state_t state) {
     TracingState::initialize(state);
+
+    TracingState& tracing_state = TracingState::lookup(state);
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+
+    std::vector<instrumentr_environment_t> namespaces =
+        instrumentr_state_get_namespaces(state);
+
+    for (auto ns: namespaces) {
+        analyze_package_environment(state, env_table, ns, "namespace");
+    }
+
+    std::vector<instrumentr_environment_t> packages =
+        instrumentr_state_get_packages(state);
+
+    for (auto packs: packages) {
+        analyze_package_environment(state, env_table, packs, "package");
+    }
 }
 
 void tracing_exit_callback(instrumentr_tracer_t tracer,
@@ -1136,7 +1334,6 @@ void variable_lookup(instrumentr_tracer_t tracer,
                   effects_table,
                   backtrace);
 }
-
 void function_context_lookup(instrumentr_tracer_t tracer,
                              instrumentr_callback_t callback,
                              instrumentr_state_t state,
@@ -1494,6 +1691,42 @@ void trace_error(instrumentr_tracer_t tracer,
             source_call_id = arg->get_call_id();
             source_arg_id = promise_id;
             source_formal_pos = arg->get_formal_pos();
+        }
+    }
+}
+
+void attribute_set_callback(instrumentr_tracer_t tracer,
+                            instrumentr_callback_t callback,
+                            instrumentr_state_t state,
+                            instrumentr_application_t application,
+                            instrumentr_value_t object,
+                            instrumentr_symbol_t name,
+                            instrumentr_value_t value) {
+    if (!instrumentr_value_is_environment(object)) {
+        return;
+    }
+
+    TracingState& tracing_state = TracingState::lookup(state);
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+
+    Environment* env =
+        env_table.insert(instrumentr_value_as_environment(object));
+
+    if (instrumentr_symbol_get_sexp(name) != R_ClassSymbol) {
+        return;
+    }
+
+    if (!instrumentr_value_is_character(value)) {
+        return;
+    }
+
+    instrumentr_character_t classes = instrumentr_value_as_character(value);
+
+    for (int i = 0; i < instrumentr_character_get_size(classes); ++i) {
+        instrumentr_char_t char_val =
+            instrumentr_character_get_element(classes, i);
+        if (!instrumentr_char_is_na(char_val)) {
+            env->update_class(instrumentr_char_get_element(char_val));
         }
     }
 }
