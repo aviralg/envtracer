@@ -322,17 +322,19 @@ void builtin_environment_access(instrumentr_call_stack_t call_stack,
 
     EnvironmentAccess* env_access = nullptr;
 
+    int depth = dyntrace_get_frame_depth();
+
     if (x_type == "integer") {
         env_access = EnvironmentAccess::XInt(
-            call_id, fun_name, x_type, INTEGER_ELT(r_x, 0));
+            call_id, depth, fun_name, x_type, INTEGER_ELT(r_x, 0));
     } else if (x_type == "double") {
         env_access = EnvironmentAccess::XInt(
-            call_id, fun_name, x_type, REAL_ELT(r_x, 0));
+            call_id, depth, fun_name, x_type, REAL_ELT(r_x, 0));
     } else if (x_type == "character") {
         env_access = EnvironmentAccess::XChar(
-            call_id, fun_name, x_type, CHAR(STRING_ELT(r_x, 0)));
+            call_id, depth, fun_name, x_type, CHAR(STRING_ELT(r_x, 0)));
     } else {
-        env_access = new EnvironmentAccess(call_id, fun_name, x_type);
+        env_access = new EnvironmentAccess(call_id, depth, fun_name, x_type);
     }
 
     if (env_access != nullptr) {
@@ -384,8 +386,10 @@ void closure_environment_access(instrumentr_call_stack_t call_stack,
                      get_sexp_type(r_which).c_str());
         }
 
+        int depth = dyntrace_get_frame_depth();
+
         env_access =
-            EnvironmentAccess::Which(call_id, fun_name, arg_type, which);
+            EnvironmentAccess::Which(call_id, depth, fun_name, arg_type, which);
 
     } else if (fun_name == "sys.parent" || fun_name == "parent.frame") {
         SEXP r_n = Rf_findVarInFrame(r_env, R_NSymbol);
@@ -410,13 +414,18 @@ void closure_environment_access(instrumentr_call_stack_t call_stack,
             Rf_error("incorrect type of n: %s", get_sexp_type(r_n).c_str());
         }
 
-        env_access = EnvironmentAccess::N(call_id, fun_name, arg_type, n);
+        int depth = dyntrace_get_frame_depth();
+
+        env_access =
+            EnvironmentAccess::N(call_id, depth, fun_name, arg_type, n);
 
     } else if (fun_name == "sys.calls" || fun_name == "sys.frames" ||
                fun_name == "sys.parents" || fun_name == "sys.on.exit" ||
                fun_name == "sys.status" || fun_name == "sys.nframe") {
-        env_access =
-            new EnvironmentAccess(call_id, fun_name, ENVTRACER_NA_STRING);
+        int depth = dyntrace_get_frame_depth();
+
+        env_access = new EnvironmentAccess(
+            call_id, depth, fun_name, ENVTRACER_NA_STRING);
     }
 
     if (env_access != nullptr) {

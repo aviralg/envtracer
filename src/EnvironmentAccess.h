@@ -7,9 +7,11 @@
 class EnvironmentAccess {
   public:
     EnvironmentAccess(int call_id,
+                      int depth,
                       const std::string& fun_name,
                       const std::string& arg_type)
         : call_id_(call_id)
+        , depth_(depth)
         , fun_name_(fun_name)
         , source_fun_id_(NA_INTEGER)
         , source_call_id_(NA_INTEGER)
@@ -67,6 +69,7 @@ class EnvironmentAccess {
 
     void to_sexp(int position,
                  SEXP r_call_id,
+                 SEXP r_depth,
                  SEXP r_fun_name,
                  SEXP r_source_fun_id,
                  SEXP r_source_call_id,
@@ -76,6 +79,7 @@ class EnvironmentAccess {
                  SEXP r_x_int,
                  SEXP r_x_char) {
         SET_INTEGER_ELT(r_call_id, position, call_id_);
+        SET_INTEGER_ELT(r_depth, position, depth_);
         SET_STRING_ELT(r_fun_name, position, make_char(fun_name_));
         SET_INTEGER_ELT(r_source_fun_id, position, source_fun_id_);
         SET_INTEGER_ELT(r_source_call_id, position, source_call_id_);
@@ -87,27 +91,32 @@ class EnvironmentAccess {
     }
 
     static EnvironmentAccess* Which(int call_id,
+                                    int depth,
                                     const std::string& fun_name,
                                     const std::string& arg_type,
                                     int which);
 
     static EnvironmentAccess* N(int call_id,
+                                int depth,
                                 const std::string& fun_name,
                                 const std::string& arg_type,
                                 int n);
 
     static EnvironmentAccess* XInt(int call_id,
+                                   int depth,
                                    const std::string& fun_name,
                                    const std::string& arg_type,
                                    int x_int);
 
     static EnvironmentAccess* XChar(int call_id,
+                                    int depth,
                                     const std::string& fun_name,
                                     const std::string& arg_type,
                                     const std::string& x_char);
 
   private:
     int call_id_;
+    int depth_;
     std::string fun_name_;
     int source_fun_id_;
     int source_call_id_;
