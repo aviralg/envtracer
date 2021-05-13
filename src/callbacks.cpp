@@ -725,6 +725,28 @@ void inspect_environments(instrumentr_state_t state,
             }
         }
     }
+
+    if (name == "lockEnvironment" || name == "lockBinding" ||
+        name == "unlockBinding") {
+        char event_type =
+            name == "lockBinding" ? '(' : (name == "unlockBinding" ? ')' : '*');
+        instrumentr_environment_t environment =
+            instrumentr_call_get_environment(call);
+
+        instrumentr_value_t value = instrumentr_environment_lookup(
+            environment, instrumentr_state_get_symbol(state, "env"));
+
+        if (instrumentr_value_is_promise(value)) {
+            value = instrumentr_promise_get_value(
+                instrumentr_value_as_promise(value));
+        }
+
+        if (instrumentr_value_is_environment(value)) {
+            Environment* env =
+                env_table.insert(instrumentr_value_as_environment(value));
+            env->add_event(event_type);
+        }
+    }
 }
 
 void closure_call_exit_callback(instrumentr_tracer_t tracer,
@@ -1198,6 +1220,8 @@ void process_reads(instrumentr_state_t state,
 
     int env_id = instrumentr_environment_get_id(environment);
 
+    env->add_event(type);
+
     instrumentr_call_stack_t call_stack =
         instrumentr_state_get_call_stack(state);
 
@@ -1386,6 +1410,7 @@ void process_writes(instrumentr_state_t state,
     }
 
     Environment* env = environment_table.insert(environment);
+    env->add_event(type);
 
     int t2 = instrumentr_environment_get_birth_time(environment);
     int env_id = instrumentr_environment_get_id(environment);
@@ -1758,7 +1783,6 @@ void gc_allocation_callback(instrumentr_tracer_t tracer,
 
     instrumentr_value_t fun = instrumentr_call_get_function(call);
     instrumentr_closure_t closure = instrumentr_value_as_closure(fun);
-
 
     env->set_source(ENVTRACER_NA_STRING,
                     instrumentr_closure_get_id(closure),
