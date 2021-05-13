@@ -118,6 +118,11 @@ SEXP r_envtracer_tracer_create() {
     instrumentr_object_release(callback);
 
     callback = instrumentr_callback_create_from_c_function(
+        (void*) (gc_allocation_callback), INSTRUMENTR_EVENT_GC_ALLOCATION);
+    instrumentr_tracer_set_callback(tracer, callback);
+    instrumentr_object_release(callback);
+
+    callback = instrumentr_callback_create_from_c_function(
         (void*) (use_method_entry_callback),
         INSTRUMENTR_EVENT_USE_METHOD_ENTRY);
     instrumentr_tracer_set_callback(tracer, callback);

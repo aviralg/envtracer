@@ -238,10 +238,11 @@ bool has_minus_one_argument(instrumentr_call_t call) {
     return valid;
 }
 
-instrumentr_call_t get_caller(instrumentr_call_stack_t call_stack) {
+instrumentr_call_t get_caller(instrumentr_call_stack_t call_stack,
+                              int index = 1) {
     int env_id = NA_INTEGER;
 
-    for (int i = 1; i < instrumentr_call_stack_get_size(call_stack); ++i) {
+    for (int i = index; i < instrumentr_call_stack_get_size(call_stack); ++i) {
         instrumentr_frame_t frame =
             instrumentr_call_stack_peek_frame(call_stack, i);
 
@@ -1730,6 +1731,44 @@ void attribute_set_callback(instrumentr_tracer_t tracer,
         }
     }
 }
+
+void gc_allocation_callback(instrumentr_tracer_t tracer,
+                            instrumentr_callback_t callback,
+                            instrumentr_state_t state,
+                            instrumentr_application_t application,
+                            instrumentr_value_t value) {
+    if (!instrumentr_value_is_environment(value)) {
+        return;
+    }
+
+    TracingState& tracing_state = TracingState::lookup(state);
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+
+    instrumentr_environment_t environment =
+        instrumentr_value_as_environment(value);
+
+    Environment* env = env_table.insert(environment);
+
+    instrumentr_call_t call =
+        get_caller(instrumentr_state_get_call_stack(state), 0);
+
+    if (call == nullptr) {
+        return;
+    }
+
+    instrumentr_value_t fun = instrumentr_call_get_function(call);
+    instrumentr_closure_t closure = instrumentr_value_as_closure(fun);
+
+
+    env->set_source(ENVTRACER_NA_STRING,
+                    instrumentr_closure_get_id(closure),
+                    instrumentr_call_get_id(call));
+
+    Backtrace& backtrace = tracing_state.get_backtrace();
+
+    env->set_backtrace(backtrace.to_string());
+}
+
 void use_method_entry_callback(instrumentr_tracer_t tracer,
                                instrumentr_callback_t callback,
                                instrumentr_state_t state,
