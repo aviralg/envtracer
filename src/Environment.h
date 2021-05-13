@@ -14,7 +14,9 @@ class Environment {
         , package_(ENVTRACER_NA_STRING)
         , constructor_(ENVTRACER_NA_STRING)
         , source_fun_id_(NA_INTEGER)
-        , source_call_id_(NA_INTEGER) {
+        , source_call_id_(NA_INTEGER)
+        , dispatch_(false)
+        , backtrace_(ENVTRACER_NA_STRING) {
     }
 
     int get_id() {
@@ -84,6 +86,14 @@ class Environment {
         source_call_id_ = source_call_id;
     }
 
+    void set_backtrace(const std::string& backtrace) {
+        backtrace_ = backtrace;
+    }
+
+    void set_dispatch() {
+        dispatch_ = true;
+    }
+
     void to_sexp(int position,
                  SEXP r_env_id,
                  SEXP r_env_type,
@@ -94,7 +104,9 @@ class Environment {
                  SEXP r_package,
                  SEXP r_constructor,
                  SEXP r_source_fun_id,
-                 SEXP r_source_call_id) {
+                 SEXP r_source_call_id,
+                 SEXP r_dispatch,
+                 SEXP r_backtrace) {
         SET_INTEGER_ELT(r_env_id, position, env_id_);
         SET_STRING_ELT(r_env_type, position, make_char(env_type_));
         SET_STRING_ELT(r_env_name, position, make_char(env_name_));
@@ -105,6 +117,8 @@ class Environment {
         SET_STRING_ELT(r_constructor, position, make_char(constructor_));
         SET_INTEGER_ELT(r_source_fun_id, position, source_fun_id_);
         SET_INTEGER_ELT(r_source_call_id, position, source_call_id_);
+        SET_LOGICAL_ELT(r_dispatch, position, dispatch_ ? 1 : 0);
+        SET_STRING_ELT(r_backtrace, position, make_char(backtrace_));
     }
 
   private:
@@ -118,6 +132,8 @@ class Environment {
     std::string constructor_;
     int source_fun_id_;
     int source_call_id_;
+    bool dispatch_;
+    std::string backtrace_;
 };
 
 #endif /* ENVTRACER_ENVIRONMENT_H */

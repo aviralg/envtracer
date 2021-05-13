@@ -71,6 +71,8 @@ class EnvironmentTable {
         SEXP r_constructor = PROTECT(allocVector(STRSXP, size));
         SEXP r_source_fun_id = PROTECT(allocVector(INTSXP, size));
         SEXP r_source_call_id = PROTECT(allocVector(INTSXP, size));
+        SEXP r_dispatch = PROTECT(allocVector(LGLSXP, size));
+        SEXP r_backtrace = PROTECT(allocVector(STRSXP, size));
 
         int index = 0;
         for (auto iter = table_.begin(); iter != table_.end();
@@ -87,7 +89,9 @@ class EnvironmentTable {
                                  r_package,
                                  r_constructor,
                                  r_source_fun_id,
-                                 r_source_call_id);
+                                 r_source_call_id,
+                                 r_dispatch,
+                                 r_backtrace);
         }
 
         std::vector<SEXP> columns({r_env_id,
@@ -99,7 +103,9 @@ class EnvironmentTable {
                                    r_package,
                                    r_constructor,
                                    r_source_fun_id,
-                                   r_source_call_id});
+                                   r_source_call_id,
+                                   r_dispatch,
+                                   r_backtrace});
 
         std::vector<std::string> names({"env_id",
                                         "env_type",
@@ -110,11 +116,13 @@ class EnvironmentTable {
                                         "package",
                                         "constructor",
                                         "source_fun_id",
-                                        "source_call_id"});
+                                        "source_call_id",
+                                        "dispatch",
+                                        "backtrace"});
 
         SEXP df = create_data_frame(names, columns);
 
-        UNPROTECT(10);
+        UNPROTECT(12);
 
         return df;
     }

@@ -133,4 +133,12 @@ void attribute_set_callback(instrumentr_tracer_t tracer,
                             instrumentr_symbol_t name,
                             instrumentr_value_t value);
 
+
+void use_method_entry_callback(instrumentr_tracer_t tracer,
+                               instrumentr_callback_t callback,
+                               instrumentr_state_t state,
+                               instrumentr_application_t application,
+                               instrumentr_value_t object,
+                               instrumentr_environment_t environment);
+
 #endif /* ENVTRACER_CALLBACKS_H  */

@@ -1730,3 +1730,16 @@ void attribute_set_callback(instrumentr_tracer_t tracer,
         }
     }
 }
+void use_method_entry_callback(instrumentr_tracer_t tracer,
+                               instrumentr_callback_t callback,
+                               instrumentr_state_t state,
+                               instrumentr_application_t application,
+                               instrumentr_value_t object,
+                               instrumentr_environment_t environment) {
+    TracingState& tracing_state = TracingState::lookup(state);
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+
+    Environment* env = env_table.insert(environment);
+
+    env->set_dispatch();
+}
