@@ -12,6 +12,7 @@
 #include "CallReflectionTable.h"
 #include "Backtrace.h"
 #include "EnvironmentAccessTable.h"
+#include "EnvironmentConstructorTable.h"
 #include <instrumentr/instrumentr.h>
 
 class TracingState {
@@ -99,6 +100,14 @@ class TracingState {
         return env_access_table_;
     }
 
+    EnvironmentConstructorTable& get_environment_constructor_table() {
+        return env_constructor_table_;
+    }
+
+    const EnvironmentConstructorTable& get_environment_constructor_table() const {
+        return env_constructor_table_;
+    }
+
     static void initialize(instrumentr_state_t state);
 
     static void finalize(instrumentr_state_t state);
@@ -116,6 +125,7 @@ class TracingState {
     CallReflectionTable call_ref_tab_;
     Backtrace backtrace_;
     EnvironmentAccessTable env_access_table_;
+    EnvironmentConstructorTable env_constructor_table_;
 };
 
 #endif /* ENVTRACER_TRACING_STATE_H */

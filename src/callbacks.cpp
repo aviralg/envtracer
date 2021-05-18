@@ -5,6 +5,87 @@
 #include <instrumentr/instrumentr.h>
 #include <vector>
 
+int extract_logical(instrumentr_value_t value, int index = 0) {
+    if (value == NULL) {
+        return NA_LOGICAL;
+    }
+
+    else if (instrumentr_value_is_logical(value)) {
+        return instrumentr_logical_get_element(
+            instrumentr_value_as_logical(value), 0);
+    }
+
+    else if (instrumentr_value_is_real(value)) {
+        return instrumentr_real_get_element(instrumentr_value_as_real(value),
+                                            0);
+    }
+
+    else if (instrumentr_value_is_integer(value)) {
+        return instrumentr_integer_get_element(
+            instrumentr_value_as_integer(value), 0);
+    }
+
+    return NA_LOGICAL;
+}
+
+int extract_integer(instrumentr_value_t value, int index = 0) {
+    if (value == NULL) {
+        return NA_INTEGER;
+    }
+
+    else if (instrumentr_value_is_logical(value)) {
+        return instrumentr_logical_get_element(
+            instrumentr_value_as_logical(value), 0);
+    }
+
+    else if (instrumentr_value_is_real(value)) {
+        return instrumentr_real_get_element(instrumentr_value_as_real(value),
+                                            0);
+    }
+
+    else if (instrumentr_value_is_integer(value)) {
+        return instrumentr_integer_get_element(
+            instrumentr_value_as_integer(value), 0);
+    }
+
+    return NA_INTEGER;
+}
+
+std::pair<instrumentr_value_t, std::string>
+lookup_environment(instrumentr_state_t state,
+                   instrumentr_environment_t environment,
+                   const char* name,
+                   bool unwrap_promise = true) {
+    instrumentr_symbol_t sym = instrumentr_state_get_symbol(state, name);
+
+    instrumentr_value_t val = instrumentr_environment_lookup(environment, sym);
+
+    std::string expr = ENVTRACER_NA_STRING;
+
+    while (instrumentr_value_is_promise(val)) {
+        instrumentr_promise_t val_prom = instrumentr_value_as_promise(val);
+
+        if (expr == ENVTRACER_NA_STRING) {
+            SEXP r_expr = instrumentr_value_get_sexp(
+                instrumentr_promise_get_expression(val_prom));
+
+            std::vector<std::string> exprs =
+                instrumentr_sexp_to_string(r_expr, true);
+
+            expr = exprs.front();
+        }
+
+        if (!instrumentr_promise_is_forced(val_prom)) {
+            val = NULL;
+            break;
+        }
+
+        val = instrumentr_promise_get_value(val_prom);
+    }
+
+    return make_pair(val, expr);
+}
+
 void analyze_package_environment(instrumentr_state_t state,
                                  EnvironmentTable& env_table,
                                  instrumentr_environment_t environment,
@@ -279,6 +360,38 @@ instrumentr_call_t get_caller(instrumentr_call_stack_t call_stack,
     }
 
     return nullptr;
+}
+
+int get_environment_depth(instrumentr_call_stack_t call_stack,
+                          instrumentr_id_t environment_id,
+                          int index = 0) {
+    int depth = 0;
+
+    for (int i = index; i < instrumentr_call_stack_get_size(call_stack); ++i) {
+        instrumentr_frame_t frame =
+            instrumentr_call_stack_peek_frame(call_stack, i);
+
+        if (instrumentr_frame_is_call(frame)) {
+            instrumentr_call_t call = instrumentr_frame_as_call(frame);
+
+            instrumentr_value_t fun = instrumentr_call_get_function(call);
+
+            if (!instrumentr_value_is_closure(fun)) {
+                continue;
+            }
+
+            ++depth;
+
+            instrumentr_environment_t env =
+                instrumentr_call_get_environment(call);
+
+            if (instrumentr_environment_get_id(env) == environment_id) {
+                return depth;
+            }
+        }
+    }
+
+    return NA_INTEGER;
 }
 
 void update_source(instrumentr_call_stack_t call_stack,
@@ -758,6 +871,123 @@ void inspect_environments(instrumentr_state_t state,
     }
 }
 
+void add_constructor(instrumentr_state_t state,
+                     instrumentr_closure_t closure,
+                     instrumentr_call_t call,
+                     EnvironmentConstructorTable& env_cons_tab) {
+    const char* name = instrumentr_closure_get_name(closure);
+    std::string fun_name = name == nullptr ? "" : name;
+
+    if (fun_name != "list2env" && fun_name != "new.env") {
+        return;
+    }
+
+    int call_id = instrumentr_call_get_id(call);
+    int fun_id = instrumentr_closure_get_id(closure);
+
+    instrumentr_environment_t call_env = instrumentr_call_get_environment(call);
+
+    if (!instrumentr_call_has_result(call)) {
+        return;
+    }
+
+    instrumentr_call_stack_t call_stack =
+        instrumentr_state_get_call_stack(state);
+
+    instrumentr_language_t call_expr_lang =
+        instrumentr_call_get_expression(call);
+    std::vector<std::string> call_expr = instrumentr_sexp_to_string(
+        instrumentr_language_get_sexp(call_expr_lang), true);
+
+    instrumentr_value_t result = instrumentr_call_get_result(call);
+    instrumentr_environment_t result_env =
+        instrumentr_value_as_environment(result);
+
+    int result_env_id = instrumentr_environment_get_id(result_env);
+
+    int envir_id = NA_INTEGER;
+    std::string envir_expr = ENVTRACER_NA_STRING;
+    int envir_depth = NA_INTEGER;
+
+    if (fun_name == "list2env") {
+        instrumentr_value_t envir_val;
+        std::tie(envir_val, envir_expr) =
+            lookup_environment(state, call_env, "envir");
+        if (envir_val != NULL) {
+            envir_id = instrumentr_value_get_id(envir_val);
+            envir_depth = get_environment_depth(call_stack, envir_id, 0);
+        }
+    }
+
+    instrumentr_value_t hash_val;
+    std::string hash_expr = ENVTRACER_NA_STRING;
+    std::tie(hash_val, hash_expr) = lookup_environment(state, call_env, "hash");
+    int hash = extract_logical(hash_val);
+
+    int parent_env_id = NA_INTEGER;
+    std::string parent_expr = ENVTRACER_NA_STRING;
+    int parent_env_depth = NA_INTEGER;
+    {
+        instrumentr_value_t parent_val;
+        std::tie(parent_val, parent_expr) =
+            lookup_environment(state, call_env, "parent");
+
+        if (parent_val != NULL &&
+            instrumentr_value_is_environment(parent_val)) {
+            parent_env_id = instrumentr_value_get_id(parent_val);
+            parent_env_depth =
+                get_environment_depth(call_stack, parent_env_id, 0);
+        }
+    }
+
+    instrumentr_value_t size_val;
+    std::string size_expr;
+    std::tie(size_val, size_expr) = lookup_environment(state, call_env, "size");
+    int size = extract_integer(size_val);
+
+    int source_call_id = NA_INTEGER;
+    int source_fun_id = NA_INTEGER;
+    {
+        instrumentr_call_t source_call = get_caller(call_stack);
+        if (source_call != NULL) {
+            source_call_id = instrumentr_call_get_id(source_call);
+            source_fun_id = instrumentr_value_get_id(
+                instrumentr_call_get_function(source_call));
+        }
+    }
+
+    int chain_length = NA_INTEGER;
+    {
+        chain_length = 0;
+        SEXP r_parent_env = instrumentr_environment_get_sexp(result_env);
+        while (ENCLOS(r_parent_env) != R_EmptyEnv) {
+            r_parent_env = ENCLOS(r_parent_env);
+            ++chain_length;
+        }
+    }
+
+    EnvironmentConstructor* cons = new EnvironmentConstructor(call_id,
+                                                              call_expr.front(),
+                                                              fun_id,
+                                                              fun_name,
+                                                              result_env_id,
+                                                              envir_expr,
+                                                              envir_id,
+                                                              envir_depth,
+                                                              hash_expr,
+                                                              hash,
+                                                              parent_expr,
+                                                              parent_env_id,
+                                                              parent_env_depth,
+                                                              size_expr,
+                                                              size,
+                                                              chain_length,
+                                                              source_call_id,
+                                                              source_fun_id);
+
+    env_cons_tab.insert(cons);
+}
+
 void closure_call_exit_callback(instrumentr_tracer_t tracer,
                                 instrumentr_callback_t callback,
                                 instrumentr_state_t state,
@@ -802,6 +1032,11 @@ void closure_call_exit_callback(instrumentr_tracer_t tracer,
 
     EnvironmentTable& env_table = tracing_state.get_environment_table();
     inspect_environments(state, closure, call, env_table);
+
+    EnvironmentConstructorTable& env_cons_tab =
+        tracing_state.get_environment_constructor_table();
+    add_constructor(state, closure, call, env_cons_tab);
+
     //
     // handle_call_result(closure, call, env_table);
 }
