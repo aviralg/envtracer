@@ -20,6 +20,10 @@ class EnvironmentTable {
     Environment* insert(instrumentr_environment_t environment) {
         int env_id = instrumentr_environment_get_id(environment);
 
+        bool hashed = instrumentr_environment_is_hashed(environment);
+
+        int parent_env_id = get_parent_id_(environment);
+
         int call_id = NA_INTEGER;
 
         instrumentr_environment_type_t type =
@@ -38,7 +42,8 @@ class EnvironmentTable {
             return iter->second;
         }
 
-        Environment* env = new Environment(env_id, call_id);
+        Environment* env =
+            new Environment(env_id, hashed, parent_env_id, call_id);
 
         const char* env_name = instrumentr_environment_get_name(environment);
         env->set_name(env_name);
@@ -62,6 +67,8 @@ class EnvironmentTable {
         int size = table_.size();
 
         SEXP r_env_id = PROTECT(allocVector(INTSXP, size));
+        SEXP r_hashed = PROTECT(allocVector(LGLSXP, size));
+        SEXP r_parent_env_id = PROTECT(allocVector(INTSXP, size));
         SEXP r_env_type = PROTECT(allocVector(STRSXP, size));
         SEXP r_env_name = PROTECT(allocVector(STRSXP, size));
         SEXP r_call_id = PROTECT(allocVector(INTSXP, size));
@@ -82,6 +89,8 @@ class EnvironmentTable {
 
             environment->to_sexp(index,
                                  r_env_id,
+                                 r_hashed,
+                                 r_parent_env_id,
                                  r_env_type,
                                  r_env_name,
                                  r_call_id,
@@ -97,6 +106,8 @@ class EnvironmentTable {
         }
 
         std::vector<SEXP> columns({r_env_id,
+                                   r_hashed,
+                                   r_parent_env_id,
                                    r_env_type,
                                    r_env_name,
                                    r_call_id,
@@ -111,6 +122,8 @@ class EnvironmentTable {
                                    r_backtrace});
 
         std::vector<std::string> names({"env_id",
+                                        "hashed",
+                                        "parent_env_id",
                                         "env_type",
                                         "env_name",
                                         "call_id",
@@ -126,13 +139,27 @@ class EnvironmentTable {
 
         SEXP df = create_data_frame(names, columns);
 
-        UNPROTECT(13);
+        UNPROTECT(15);
 
         return df;
     }
 
   private:
     std::unordered_map<int, Environment*> table_;
+
+    int get_parent_id_(instrumentr_environment_t environment) {
+        int parent_id = NA_INTEGER;
+
+        instrumentr_value_t parent =
+            instrumentr_environment_get_parent(environment);
+
+        if (!instrumentr_value_is_null(parent)) {
+            parent_id = this->insert(instrumentr_value_as_environment(parent))
+                            ->get_id();
+        }
+
+        return parent_id;
+    }
 };
 
 #endif /* ENVTRACER_ENVIRONMENT_TABLE_H */

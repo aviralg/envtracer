@@ -6,8 +6,10 @@
 
 class Environment {
   public:
-    Environment(int env_id, int call_id)
+    Environment(int env_id, bool hashed, int parent_env_id, int call_id)
         : env_id_(env_id)
+        , hashed_(hashed)
+        , parent_env_id_(parent_env_id)
         , env_type_(ENVTRACER_NA_STRING)
         , env_name_(ENVTRACER_NA_STRING)
         , call_id_(call_id)
@@ -127,8 +129,14 @@ class Environment {
         event_seq_.push_back('-');
     }
 
+    void set_parent(int parent_env_id) {
+        parent_env_id_ = parent_env_id;
+    }
+
     void to_sexp(int position,
                  SEXP r_env_id,
+                 SEXP r_hashed,
+                 SEXP r_parent_env_id,
                  SEXP r_env_type,
                  SEXP r_env_name,
                  SEXP r_call_id,
@@ -142,6 +150,8 @@ class Environment {
                  SEXP r_event_seq,
                  SEXP r_backtrace) {
         SET_INTEGER_ELT(r_env_id, position, env_id_);
+        SET_LOGICAL_ELT(r_hashed, position, hashed_);
+        SET_INTEGER_ELT(r_parent_env_id, position, parent_env_id_);
         SET_STRING_ELT(r_env_type, position, make_char(env_type_));
         SET_STRING_ELT(r_env_name, position, make_char(env_name_));
         SET_INTEGER_ELT(r_call_id, position, call_id_);
@@ -158,6 +168,8 @@ class Environment {
 
   private:
     int env_id_;
+    bool hashed_;
+    int parent_env_id_;
     std::string env_type_;
     std::string env_name_;
     int call_id_;
