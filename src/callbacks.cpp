@@ -913,7 +913,7 @@ void add_constructor(instrumentr_state_t state,
         instrumentr_value_t envir_val;
         std::tie(envir_val, envir_expr) =
             lookup_environment(state, call_env, "envir");
-        if (envir_val != NULL) {
+        if (envir_val != NULL && instrumentr_value_is_environment(envir_val)) {
             envir_id = instrumentr_value_get_id(envir_val);
             envir_depth = get_environment_depth(call_stack, envir_id, 0);
         }
