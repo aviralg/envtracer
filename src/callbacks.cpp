@@ -456,7 +456,8 @@ void builtin_environment_access(instrumentr_call_stack_t call_stack,
     }
 }
 
-void closure_environment_access(instrumentr_call_stack_t call_stack,
+void closure_environment_access(instrumentr_state_t state,
+                                instrumentr_call_stack_t call_stack,
                                 instrumentr_call_t call,
                                 instrumentr_closure_t closure,
                                 EnvironmentAccessTable& env_access_table) {
@@ -539,6 +540,18 @@ void closure_environment_access(instrumentr_call_stack_t call_stack,
 
         env_access = new EnvironmentAccess(
             call_id, depth, fun_name, ENVTRACER_NA_STRING);
+    } else if (fun_name == "environment") {
+        int depth = dyntrace_get_frame_depth();
+        instrumentr_value_t value = instrumentr_environment_lookup(
+            env, instrumentr_state_get_symbol(state, "fun"));
+
+        SEXP r_fun = instrumentr_value_get_sexp(value);
+        int fun_id = instrumentr_value_is_closure(value)
+                         ? instrumentr_value_get_id(value)
+                         : NA_INTEGER;
+
+        env_access = EnvironmentAccess::Fun(
+            call_id, depth, fun_name, get_sexp_type(r_fun), fun_id);
     }
 
     if (env_access != nullptr) {
@@ -1028,7 +1041,7 @@ void closure_call_exit_callback(instrumentr_tracer_t tracer,
 
     instrumentr_call_stack_t call_stack =
         instrumentr_state_get_call_stack(state);
-    closure_environment_access(call_stack, call, closure, env_access_table);
+    closure_environment_access(state, call_stack, call, closure, env_access_table);
 
     EnvironmentTable& env_table = tracing_state.get_environment_table();
     inspect_environments(state, closure, call, env_table);

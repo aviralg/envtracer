@@ -19,7 +19,8 @@ class EnvironmentAccess {
         , n_(NA_INTEGER)
         , which_(NA_INTEGER)
         , x_int_(NA_INTEGER)
-        , x_char_(ENVTRACER_NA_STRING) {
+        , x_char_(ENVTRACER_NA_STRING)
+        , fun_id_(NA_INTEGER) {
     }
 
     int get_call_id() const {
@@ -62,6 +63,10 @@ class EnvironmentAccess {
         x_char_ = x_char;
     }
 
+    void set_fun_id(int fun_id) {
+        fun_id_ = fun_id;
+    }
+
     void set_source(int source_fun_id, int source_call_id) {
         source_fun_id_ = source_fun_id;
         source_call_id_ = source_call_id;
@@ -77,7 +82,8 @@ class EnvironmentAccess {
                  SEXP r_n,
                  SEXP r_which,
                  SEXP r_x_int,
-                 SEXP r_x_char) {
+                 SEXP r_x_char,
+                 SEXP r_fun_id) {
         SET_INTEGER_ELT(r_call_id, position, call_id_);
         SET_INTEGER_ELT(r_depth, position, depth_);
         SET_STRING_ELT(r_fun_name, position, make_char(fun_name_));
@@ -88,6 +94,7 @@ class EnvironmentAccess {
         SET_INTEGER_ELT(r_which, position, which_);
         SET_INTEGER_ELT(r_x_int, position, x_int_);
         SET_STRING_ELT(r_x_char, position, make_char(x_char_));
+        SET_INTEGER_ELT(r_fun_id, position, fun_id_);
     }
 
     static EnvironmentAccess* Which(int call_id,
@@ -114,6 +121,12 @@ class EnvironmentAccess {
                                     const std::string& arg_type,
                                     const std::string& x_char);
 
+    static EnvironmentAccess* Fun(int call_id,
+                                  int depth,
+                                  const std::string& fun_name,
+                                  const std::string& arg_type,
+                                  int fun_id);
+
   private:
     int call_id_;
     int depth_;
@@ -125,6 +138,7 @@ class EnvironmentAccess {
     int which_;
     int x_int_;
     std::string x_char_;
+    int fun_id_;
 };
 
 #endif /* ENVTRACER_ENVIRONMENT_ACCESS_H */
