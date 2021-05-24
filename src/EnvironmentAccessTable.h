@@ -47,6 +47,9 @@ class EnvironmentAccessTable {
         SEXP r_x_int = PROTECT(allocVector(INTSXP, size));
         SEXP r_x_char = PROTECT(allocVector(STRSXP, size));
         SEXP r_fun_id = PROTECT(allocVector(INTSXP, size));
+        SEXP r_symbol = PROTECT(allocVector(STRSXP, size));
+        SEXP r_bindings = PROTECT(allocVector(LGLSXP, size));
+        SEXP r_env_id = PROTECT(allocVector(INTSXP, size));
 
         int index = 0;
         for (auto iter = table_.begin(); iter != table_.end();
@@ -64,7 +67,10 @@ class EnvironmentAccessTable {
                                 r_which,
                                 r_x_int,
                                 r_x_char,
-                                r_fun_id);
+                                r_fun_id,
+                                r_symbol,
+                                r_bindings,
+                                r_env_id);
         }
 
         std::vector<SEXP> columns({r_call_id,
@@ -77,7 +83,10 @@ class EnvironmentAccessTable {
                                    r_which,
                                    r_x_int,
                                    r_x_char,
-                                   r_fun_id});
+                                   r_fun_id,
+                                   r_symbol,
+                                   r_bindings,
+                                   r_env_id});
 
         std::vector<std::string> names({"call_id",
                                         "depth",
@@ -89,11 +98,14 @@ class EnvironmentAccessTable {
                                         "which",
                                         "x_int",
                                         "x_char",
-                                        "fun_id"});
+                                        "fun_id",
+                                        "symbol",
+                                        "bindings",
+                                        "env_id"});
 
         SEXP df = create_data_frame(names, columns);
 
-        UNPROTECT(11);
+        UNPROTECT(14);
 
         return df;
     }
