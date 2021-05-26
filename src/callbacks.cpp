@@ -1605,31 +1605,81 @@ void process_reads(instrumentr_state_t state,
         instrumentr_state_get_call_stack(state);
 
     bool transitive = false;
+void subset_or_subassign_callback(instrumentr_tracer_t tracer,
+                                  instrumentr_callback_t callback,
+                                  instrumentr_state_t state,
+                                  instrumentr_application_t application,
+                                  instrumentr_call_t call,
+                                  instrumentr_value_t x,
+                                  instrumentr_value_t index,
+                                  instrumentr_value_t result) {
+    if (!instrumentr_value_is_environment(x)) {
+        return;
+    }
+
+    TracingState& tracing_state = TracingState::lookup(state);
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+    EnvironmentAccessTable& env_access_table =
+        tracing_state.get_environment_access_table();
+    Backtrace& backtrace = tracing_state.get_backtrace();
+
+    Environment* env = env_table.insert(instrumentr_value_as_environment(x));
+
+    std::string varname = ENVTRACER_NA_STRING;
+
+    if (instrumentr_value_is_pairlist(index)) {
+        index =
+            instrumentr_pairlist_get_car(instrumentr_value_as_pairlist(index));
+    }
+
+    if (instrumentr_value_is_symbol(index)) {
+        varname = CHAR(PRINTNAME(instrumentr_value_get_sexp(index)));
+    } else if (instrumentr_value_is_character(index)) {
+        varname = CHAR(STRING_ELT(instrumentr_value_get_sexp(index), 0));
+    } else if (instrumentr_value_is_char(index)) {
+        varname = CHAR(instrumentr_value_get_sexp(index));
+    }
+
+    std::string value_type = get_sexp_type(instrumentr_value_get_sexp(result));
+
+    int call_id = instrumentr_call_get_id(call);
+    int env_id = env->get_id();
+
+    std::string fun_name = ENVTRACER_NA_STRING;
+
+    instrumentr_value_t function = instrumentr_call_get_function(call);
+
+    if (instrumentr_value_is_special(function)) {
+        fun_name = instrumentr_special_get_name(
+            instrumentr_value_as_special(function));
+    }
+
+    else if (instrumentr_value_is_builtin(function)) {
+        fun_name = instrumentr_builtin_get_name(
+            instrumentr_value_as_builtin(function));
+    }
 
     int source_fun_id = NA_INTEGER;
     int source_call_id = NA_INTEGER;
-    int source_arg_id = NA_INTEGER;
-    int source_formal_pos = NA_INTEGER;
 
-    for (int i = 0; i < instrumentr_call_stack_get_size(call_stack); ++i) {
-        instrumentr_frame_t frame =
-            instrumentr_call_stack_peek_frame(call_stack, i);
+    instrumentr_call_stack_t call_stack =
+        instrumentr_state_get_call_stack(state);
+    instrumentr_call_t source_call = get_caller(call_stack);
 
-        if (!instrumentr_frame_is_promise(frame)) {
-            continue;
-        }
+    if (source_call != NULL) {
+        source_call_id = instrumentr_call_get_id(source_call);
+        source_fun_id = instrumentr_value_get_id(
+            instrumentr_call_get_function(source_call));
+    }
 
-        instrumentr_promise_t promise = instrumentr_frame_as_promise(frame);
+    EnvironmentAccess* env_access =
+        EnvironmentAccess::RW(call_id, fun_name, value_type, varname, env_id);
 
-        if (instrumentr_promise_get_type(promise) !=
-            INSTRUMENTR_PROMISE_TYPE_ARGUMENT) {
-            continue;
-        }
+    env_access->set_source(source_fun_id, source_call_id);
 
-        int promise_id = instrumentr_promise_get_id(promise);
+    env_access_table.insert(env_access);
+}
 
-        int t1 = instrumentr_promise_get_birth_time(promise);
-        int t3 = instrumentr_promise_get_force_entry_time(promise);
 
         /* if environment is born inside this promise's evaluation, then
            we stop the analysis here because the effect is contained inside

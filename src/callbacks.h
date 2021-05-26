@@ -146,4 +146,12 @@ void use_method_entry_callback(instrumentr_tracer_t tracer,
                                instrumentr_value_t object,
                                instrumentr_environment_t environment);
 
+void subset_or_subassign_callback(instrumentr_tracer_t tracer,
+                                  instrumentr_callback_t callback,
+                                  instrumentr_state_t state,
+                                  instrumentr_application_t application,
+                                  instrumentr_call_t call,
+                                  instrumentr_value_t x,
+                                  instrumentr_value_t sub,
+                                  instrumentr_value_t result);
 #endif /* ENVTRACER_CALLBACKS_H  */
