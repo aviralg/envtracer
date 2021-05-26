@@ -73,3 +73,15 @@ EnvironmentAccess* EnvironmentAccess::Lock(int call_id,
     env_access->set_env_id(env_id);
     return env_access;
 }
+
+EnvironmentAccess* EnvironmentAccess::RW(int call_id,
+                                         const std::string& fun_name,
+                                         const std::string& value_type,
+                                         const std::string& symbol,
+                                         int env_id) {
+    EnvironmentAccess* env_access =
+        new EnvironmentAccess(call_id, NA_INTEGER, fun_name, value_type);
+    env_access->set_symbol(symbol);
+    env_access->set_env_id(env_id);
+    return env_access;
+}

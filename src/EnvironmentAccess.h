@@ -158,6 +158,12 @@ class EnvironmentAccess {
                                    int bindings,
                                    int env_id);
 
+    static EnvironmentAccess* RW(int call_id,
+                                 const std::string& fun_name,
+                                 const std::string& value_type,
+                                 const std::string& symbol,
+                                 int env_id);
+
   private:
     int call_id_;
     int depth_;
