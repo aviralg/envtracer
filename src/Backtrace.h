@@ -21,9 +21,9 @@ class Backtrace {
         int call_id = instrumentr_call_get_id(call);
         instrumentr_value_t function = instrumentr_call_get_function(call);
 
-        frame.append("call(call_id = ");
+        frame.append("list(call_id = ");
         frame.append(std::to_string(call_id));
-        frame.append(", function = ");
+        frame.append(", fun = ");
 
         if (instrumentr_value_is_closure(function)) {
             push_closure_(instrumentr_value_as_closure(function), frame);
@@ -55,13 +55,16 @@ class Backtrace {
     }
 
     std::string to_string() const {
-        std::string backtrace;
+        std::string backtrace("list(");
 
-        for (const std::string& frame: backtrace_) {
-            backtrace.append(frame);
-            backtrace.push_back('\n');
+        for (int i = 0; i < backtrace_.size(); ++i) {
+            backtrace.append(backtrace_[i]);
+            if (i != backtrace_.size() - 1) {
+                backtrace.append(",\n");
+            }
         }
 
+        backtrace.append(")");
         return backtrace;
     }
 
@@ -90,18 +93,19 @@ class Backtrace {
                         std::string& frame) {
         std::string fun_name = name == NULL ? "<NA>" : name;
 
+        frame.append("list(fun_type = '");
         frame.append(type);
-        frame.append("(fun_id = ");
+        frame.append("', fun_id = ");
         frame.append(std::to_string(fun_id));
-        frame.append(", fun_name = ");
+        frame.append(", fun_name = as.character(quote(`");
         frame.append(fun_name);
-        frame.append(")");
+        frame.append("`)))");
     }
 
     void push_promise_(instrumentr_promise_t promise) {
         std::string frame;
         int id = instrumentr_promise_get_id(promise);
-        frame.append("promise(arg_id = ");
+        frame.append("list(prom_id = ");
         frame.append(std::to_string(id));
         frame.append(")");
 
