@@ -13,6 +13,8 @@ class Environment {
         , env_type_(ENVTRACER_NA_STRING)
         , env_name_(ENVTRACER_NA_STRING)
         , call_id_(call_id)
+        , evals_(0)
+        , eval_counter_(0)
         , package_(ENVTRACER_NA_STRING)
         , constructor_(ENVTRACER_NA_STRING)
         , source_fun_id_(NA_INTEGER)
@@ -63,14 +65,17 @@ class Environment {
         classes_.push_back(klass);
     }
 
-    void add_eval(const char* eval) {
-        for (const std::string& e: evals_) {
-            if (e == eval) {
-                return;
-            }
-        }
+    void push_eval() {
+        ++evals_;
+        ++eval_counter_;
+    }
 
-        evals_.push_back(eval);
+    void pop_eval() {
+        --eval_counter_;
+    }
+
+    bool inside_eval() const {
+        return eval_counter_ > 0;
     }
 
     void set_package(const std::string& package) {
@@ -156,7 +161,7 @@ class Environment {
         SET_STRING_ELT(r_env_name, position, make_char(env_name_));
         SET_INTEGER_ELT(r_call_id, position, call_id_);
         SET_STRING_ELT(r_classes, position, make_char(classes_));
-        SET_STRING_ELT(r_evals, position, make_char(evals_));
+        SET_INTEGER_ELT(r_evals, position, evals_);
         SET_STRING_ELT(r_package, position, make_char(package_));
         SET_STRING_ELT(r_constructor, position, make_char(constructor_));
         SET_INTEGER_ELT(r_source_fun_id, position, source_fun_id_);
@@ -174,7 +179,8 @@ class Environment {
     std::string env_name_;
     int call_id_;
     std::vector<std::string> classes_;
-    std::vector<std::string> evals_;
+    int evals_;
+    int eval_counter_;
     std::string package_;
     std::string constructor_;
     int source_fun_id_;

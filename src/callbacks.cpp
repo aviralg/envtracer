@@ -1716,6 +1716,8 @@ void process_reads_and_writes(instrumentr_state_t state,
     int call_id = NA_INTEGER;
     int caller_index = type == 'S' ? 7 : 3;
 
+    EnvironmentAccess* env_access = nullptr;
+
     get_call_info(
         call_stack, caller_index, false, false, true, fun_name, call_id);
 
@@ -1745,7 +1747,7 @@ void process_reads_and_writes(instrumentr_state_t state,
             }
         }
 
-        EnvironmentAccess* env_access = EnvironmentAccess::RW(
+        env_access = EnvironmentAccess::RW(
             call_id, fun_name, value_type, varname, env->get_id());
 
         int source_fun_id = NA_INTEGER;
@@ -1761,7 +1763,29 @@ void process_reads_and_writes(instrumentr_state_t state,
         }
 
         env_access->set_source(source_fun_id, source_call_id);
+    }
 
+    if ((env_access == nullptr) && env->inside_eval()) {
+        std::string fun_name(1, type);
+
+        env_access = EnvironmentAccess::RW(
+            NA_INTEGER, fun_name, value_type, varname, env->get_id());
+
+        int source_fun_id = NA_INTEGER;
+        int source_call_id = NA_INTEGER;
+
+        instrumentr_call_t source_call = get_caller(call_stack, 0);
+
+        if (source_call != NULL) {
+            source_call_id = instrumentr_call_get_id(source_call);
+            source_fun_id = instrumentr_value_get_id(
+                instrumentr_call_get_function(source_call));
+        }
+
+        env_access->set_source(source_fun_id, source_call_id);
+    }
+
+    if (env_access != nullptr) {
         env_access_table.insert(env_access);
     }
 }
@@ -2182,4 +2206,33 @@ void use_method_entry_callback(instrumentr_tracer_t tracer,
     Environment* env = env_table.insert(environment);
 
     env->set_dispatch();
+}
+
+void eval_call_entry(instrumentr_tracer_t tracer,
+                     instrumentr_callback_t callback,
+                     instrumentr_state_t state,
+                     instrumentr_application_t application,
+                     instrumentr_value_t expression,
+                     instrumentr_environment_t environment) {
+    TracingState& tracing_state = TracingState::lookup(state);
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+
+    Environment* env = env_table.insert(environment);
+
+    env->push_eval();
+}
+
+void eval_call_exit(instrumentr_tracer_t tracer,
+                    instrumentr_callback_t callback,
+                    instrumentr_state_t state,
+                    instrumentr_application_t application,
+                    instrumentr_value_t expression,
+                    instrumentr_environment_t environment,
+                    instrumentr_value_t result) {
+    TracingState& tracing_state = TracingState::lookup(state);
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+
+    Environment* env = env_table.insert(environment);
+
+    env->pop_eval();
 }

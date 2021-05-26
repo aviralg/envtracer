@@ -73,7 +73,7 @@ class EnvironmentTable {
         SEXP r_env_name = PROTECT(allocVector(STRSXP, size));
         SEXP r_call_id = PROTECT(allocVector(INTSXP, size));
         SEXP r_classes = PROTECT(allocVector(STRSXP, size));
-        SEXP r_evals = PROTECT(allocVector(STRSXP, size));
+        SEXP r_evals = PROTECT(allocVector(INTSXP, size));
         SEXP r_package = PROTECT(allocVector(STRSXP, size));
         SEXP r_constructor = PROTECT(allocVector(STRSXP, size));
         SEXP r_source_fun_id = PROTECT(allocVector(INTSXP, size));

@@ -154,6 +154,16 @@ SEXP r_envtracer_tracer_create() {
     instrumentr_tracer_set_callback(tracer, callback);
     instrumentr_object_release(callback);
 
+    callback = instrumentr_callback_create_from_c_function(
+        (void*) (eval_call_entry), INSTRUMENTR_EVENT_EVAL_CALL_ENTRY);
+    instrumentr_tracer_set_callback(tracer, callback);
+    instrumentr_object_release(callback);
+
+    callback = instrumentr_callback_create_from_c_function(
+        (void*) (eval_call_exit), INSTRUMENTR_EVENT_EVAL_CALL_EXIT);
+    instrumentr_tracer_set_callback(tracer, callback);
+    instrumentr_object_release(callback);
+
     SEXP r_tracer = instrumentr_tracer_wrap(tracer);
     instrumentr_object_release(tracer);
     return r_tracer;
