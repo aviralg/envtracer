@@ -511,8 +511,8 @@ void closure_environment_access(instrumentr_state_t state,
             }
         }
 
-        env_access =
-            EnvironmentAccess::Which(call_id, depth, fun_name, arg_type, which, env_id);
+        env_access = EnvironmentAccess::Which(
+            call_id, depth, fun_name, arg_type, which, env_id);
 
     } else if (fun_name == "sys.parent" || fun_name == "parent.frame") {
         SEXP r_n = Rf_findVarInFrame(r_env, R_NSymbol);
@@ -583,7 +583,6 @@ void handle_environment_locking(instrumentr_state_t state,
                                 instrumentr_call_t call,
                                 instrumentr_builtin_t builtin,
                                 EnvironmentAccessTable& env_access_table) {
-
     const std::string fun_name(instrumentr_builtin_get_name(builtin));
 
     if (fun_name != "lockEnvironment" && fun_name != "lockBinding" &&
@@ -1580,31 +1579,51 @@ void tracing_exit_callback(instrumentr_tracer_t tracer,
     TracingState::finalize(state);
 }
 
-void process_reads(instrumentr_state_t state,
-                   instrumentr_environment_t environment,
-                   const char type,
-                   const std::string& varname,
-                   ArgumentTable& argument_table,
-                   EnvironmentTable& environment_table,
-                   EffectsTable& effects_table,
-                   Backtrace& backtrace) {
-    /* don't process *tmp* as it is an implementation variable */
-    if (varname == "*tmp*") {
+void get_call_info(instrumentr_call_stack_t call_stack,
+                   int position,
+                   bool builtin,
+                   bool special,
+                   bool closure,
+                   std::string& fun_name,
+                   int& call_id) {
+    fun_name = ENVTRACER_NA_STRING;
+    call_id = NA_INTEGER;
+
+    if (instrumentr_call_stack_get_size(call_stack) <= position) {
         return;
     }
 
-    Environment* env = environment_table.insert(environment);
-    int t2 = instrumentr_environment_get_last_write_time(environment);
-    int env_birth_time = instrumentr_environment_get_birth_time(environment);
+    instrumentr_frame_t frame =
+        instrumentr_call_stack_peek_frame(call_stack, position);
 
-    int env_id = instrumentr_environment_get_id(environment);
+    if (!instrumentr_frame_is_call(frame)) {
+        return;
+    }
 
-    env->add_event(type);
+    instrumentr_call_t call = instrumentr_frame_as_call(frame);
 
-    instrumentr_call_stack_t call_stack =
-        instrumentr_state_get_call_stack(state);
+    instrumentr_value_t function = instrumentr_call_get_function(call);
 
-    bool transitive = false;
+    if (builtin && instrumentr_value_is_builtin(function)) {
+        instrumentr_builtin_t builtin = instrumentr_value_as_builtin(function);
+        fun_name = charptr_to_string(instrumentr_builtin_get_name(builtin));
+    }
+
+    else if (special && instrumentr_value_is_special(function)) {
+        instrumentr_special_t special = instrumentr_value_as_special(function);
+        fun_name = charptr_to_string(instrumentr_special_get_name(special));
+    }
+
+    else if (closure && instrumentr_value_is_closure(function)) {
+        instrumentr_closure_t closure = instrumentr_value_as_closure(function);
+        fun_name = charptr_to_string(instrumentr_closure_get_name(closure));
+    }
+
+    if (fun_name != ENVTRACER_NA_STRING) {
+        call_id = instrumentr_call_get_id(call);
+    }
+}
+
 void subset_or_subassign_callback(instrumentr_tracer_t tracer,
                                   instrumentr_callback_t callback,
                                   instrumentr_state_t state,
@@ -1680,86 +1699,70 @@ void subset_or_subassign_callback(instrumentr_tracer_t tracer,
     env_access_table.insert(env_access);
 }
 
+void process_reads_and_writes(instrumentr_state_t state,
+                              instrumentr_environment_t environment,
+                              const char type,
+                              const std::string& varname,
+                              const std::string& value_type,
+                              EnvironmentTable& environment_table,
+                              EnvironmentAccessTable& env_access_table,
+                              Backtrace& backtrace) {
+    instrumentr_call_stack_t call_stack =
+        instrumentr_state_get_call_stack(state);
+    Environment* env = environment_table.insert(environment);
+    env->add_event(type);
 
-        /* if environment is born inside this promise's evaluation, then
-           we stop the analysis here because the effect is contained inside
-           this promise. */
-        if (env_birth_time > t3) {
-            return;
-        }
+    std::string fun_name("");
+    int call_id = NA_INTEGER;
+    int caller_index = type == 'S' ? 7 : 3;
 
-        // This means the environment has been modified after the promise is
-        // created but before it is forced and while forcing, this promise
-        // is reading from the environment. Since this read can potentially
-        // be from the modified location, we should mark it as non local and
-        // make the argument lazy.
-        if (!transitive && (t2 > t1 && t2 < t3)) {
-            const std::vector<Argument*>& args =
-                argument_table.lookup(promise_id);
+    get_call_info(
+        call_stack, caller_index, false, false, true, fun_name, call_id);
 
-            for (auto& arg: args) {
-                arg->side_effect(type, transitive);
+    if ((type == 'L' &&
+         (fun_name == "get" || fun_name == "get0" || fun_name == "mget")) ||
+        (type == 'A' && (fun_name == "assign")) ||
+        (type == 'D' && (fun_name == "assign")) ||
+        (type == 'E' && (fun_name == "exists")) ||
+        (type == 'R' && (fun_name == "remove" || fun_name == "rm")) ||
+        (type == 'S' && (fun_name == "ls" || fun_name == "objects"))) {
+        /* get0 is called by dynGet */
+        if (fun_name == "get0") {
+            std::string parent_fun_name("");
+            int parent_call_id = NA_INTEGER;
+            get_call_info(call_stack,
+                          15,
+                          false,
+                          false,
+                          true,
+                          parent_fun_name,
+                          parent_call_id);
+
+            if (parent_fun_name == "dynGet") {
+                fun_name = parent_fun_name;
+                call_id = parent_call_id;
+                caller_index = 15;
             }
-
-            Argument* arg = args.back();
-
-            /* NOTE: source_ids are NA because effect originates from this
-             * promise. */
-
-            effects_table.insert(type,
-                                 varname,
-                                 transitive,
-                                 env_id,
-                                 NA_INTEGER,
-                                 NA_INTEGER,
-                                 NA_INTEGER,
-                                 NA_INTEGER,
-                                 arg->get_fun_id(),
-                                 arg->get_call_id(),
-                                 promise_id,
-                                 arg->get_formal_pos(),
-                                 backtrace.to_string());
-
-            source_fun_id = arg->get_fun_id();
-            source_call_id = arg->get_call_id();
-            source_arg_id = promise_id;
-            source_formal_pos = arg->get_formal_pos();
-            transitive = true;
         }
 
-        /* if transitive is set, then the promise directly responsible for
-         * the effect has already been found and handled. All other promises
-         * on the stack are transitively responsible for forcing it and have
-         * to be made lazy. */
-        if (transitive) {
-            const std::vector<Argument*>& args =
-                argument_table.lookup(promise_id);
+        EnvironmentAccess* env_access = EnvironmentAccess::RW(
+            call_id, fun_name, value_type, varname, env->get_id());
 
-            for (auto& arg: args) {
-                arg->side_effect(type, transitive);
-            }
+        int source_fun_id = NA_INTEGER;
+        int source_call_id = NA_INTEGER;
 
-            // Take the most recent argument
-            Argument* arg = args.back();
+        instrumentr_call_t source_call =
+            get_caller(call_stack, caller_index + 1);
 
-            effects_table.insert(type,
-                                 varname,
-                                 transitive,
-                                 env_id,
-                                 source_fun_id,
-                                 source_call_id,
-                                 source_arg_id,
-                                 source_formal_pos,
-                                 arg->get_fun_id(),
-                                 arg->get_call_id(),
-                                 promise_id,
-                                 arg->get_formal_pos(),
-                                 ENVTRACER_NA_STRING);
-
-            /* loop back to next promise on the stack so it can be made
-             * responsible for transitive read. */
-            continue;
+        if (source_call != NULL) {
+            source_call_id = instrumentr_call_get_id(source_call);
+            source_fun_id = instrumentr_value_get_id(
+                instrumentr_call_get_function(source_call));
         }
+
+        env_access->set_source(source_fun_id, source_call_id);
+
+        env_access_table.insert(env_access);
     }
 }
 
@@ -1774,20 +1777,54 @@ void variable_lookup(instrumentr_tracer_t tracer,
     ArgumentTable& arg_table = tracing_state.get_argument_table();
     EffectsTable& effects_table = tracing_state.get_effects_table();
     EnvironmentTable& env_table = tracing_state.get_environment_table();
+    EnvironmentAccessTable& env_access_table =
+        tracing_state.get_environment_access_table();
     Backtrace& backtrace = tracing_state.get_backtrace();
 
     instrumentr_char_t charval = instrumentr_symbol_get_element(symbol);
     std::string varname = instrumentr_char_get_element(charval);
 
-    process_reads(state,
-                  environment,
-                  'L',
-                  varname,
-                  arg_table,
-                  env_table,
-                  effects_table,
-                  backtrace);
+    std::string value_type = get_sexp_type(instrumentr_value_get_sexp(value));
+
+    process_reads_and_writes(state,
+                             environment,
+                             'L',
+                             varname,
+                             value_type,
+                             env_table,
+                             env_access_table,
+                             backtrace);
 }
+
+void variable_exists(instrumentr_tracer_t tracer,
+                     instrumentr_callback_t callback,
+                     instrumentr_state_t state,
+                     instrumentr_application_t application,
+                     instrumentr_symbol_t symbol,
+                     instrumentr_environment_t environment) {
+    TracingState& tracing_state = TracingState::lookup(state);
+    ArgumentTable& arg_table = tracing_state.get_argument_table();
+    EffectsTable& effects_table = tracing_state.get_effects_table();
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+    EnvironmentAccessTable& env_access_table =
+        tracing_state.get_environment_access_table();
+    Backtrace& backtrace = tracing_state.get_backtrace();
+
+    instrumentr_char_t charval = instrumentr_symbol_get_element(symbol);
+    std::string varname = instrumentr_char_get_element(charval);
+
+    std::string value_type = ENVTRACER_NA_STRING;
+
+    process_reads_and_writes(state,
+                             environment,
+                             'E',
+                             varname,
+                             value_type,
+                             env_table,
+                             env_access_table,
+                             backtrace);
+}
+
 void function_context_lookup(instrumentr_tracer_t tracer,
                              instrumentr_callback_t callback,
                              instrumentr_state_t state,
@@ -1825,131 +1862,6 @@ void function_context_lookup(instrumentr_tracer_t tracer,
     }
 }
 
-void process_writes(instrumentr_state_t state,
-                    instrumentr_environment_t environment,
-                    const char type,
-                    const std::string& varname,
-                    ArgumentTable& argument_table,
-                    EnvironmentTable& environment_table,
-                    EffectsTable& effects_table,
-                    Backtrace& backtrace) {
-    /* don't process *tmp* as it is an implementation variable */
-    if (varname == "*tmp*") {
-        return;
-    }
-
-    Environment* env = environment_table.insert(environment);
-    env->add_event(type);
-
-    int t2 = instrumentr_environment_get_birth_time(environment);
-    int env_id = instrumentr_environment_get_id(environment);
-
-    instrumentr_call_stack_t call_stack =
-        instrumentr_state_get_call_stack(state);
-
-    bool transitive = false;
-
-    int source_fun_id = NA_INTEGER;
-    int source_call_id = NA_INTEGER;
-    int source_arg_id = NA_INTEGER;
-    int source_formal_pos = NA_INTEGER;
-
-    for (int i = 0; i < instrumentr_call_stack_get_size(call_stack); ++i) {
-        instrumentr_frame_t frame =
-            instrumentr_call_stack_peek_frame(call_stack, i);
-
-        if (!instrumentr_frame_is_promise(frame)) {
-            continue;
-        }
-
-        instrumentr_promise_t promise = instrumentr_frame_as_promise(frame);
-
-        if (instrumentr_promise_get_type(promise) !=
-            INSTRUMENTR_PROMISE_TYPE_ARGUMENT) {
-            continue;
-        }
-
-        int promise_id = instrumentr_promise_get_id(promise);
-        int t1 = instrumentr_promise_get_force_entry_time(promise);
-
-        /* if environment is born inside the the currently forced promise,
-         * then effect is contained inside the promise and we can exit */
-        if (t2 > t1) {
-            return;
-        }
-
-        // if promise is forced after the environment it is writing to is
-        // born then the write is a non-local side effect
-        if (!transitive) {
-            const std::vector<Argument*>& args =
-                argument_table.lookup(promise_id);
-
-            for (auto& arg: args) {
-                arg->side_effect(type, transitive);
-            }
-
-            Argument* arg = args.back();
-
-            /* NOTE: source_ids are NA because effect originates from this
-             * promise. */
-
-            effects_table.insert(type,
-                                 varname,
-                                 transitive,
-                                 env_id,
-                                 NA_INTEGER,
-                                 NA_INTEGER,
-                                 NA_INTEGER,
-                                 NA_INTEGER,
-                                 arg->get_fun_id(),
-                                 arg->get_call_id(),
-                                 promise_id,
-                                 arg->get_formal_pos(),
-                                 backtrace.to_string());
-
-            source_fun_id = arg->get_fun_id();
-            source_call_id = arg->get_call_id();
-            source_arg_id = promise_id;
-            source_formal_pos = arg->get_formal_pos();
-            transitive = true;
-        }
-
-        /* if transitive is set, then the promise directly responsible for
-         * the effect has already been found and handled. All other promises
-         * on the stack satisfying this condition are transitively
-         * responsible for forcing it and have to be made lazy. */
-        if (transitive) {
-            const std::vector<Argument*>& args =
-                argument_table.lookup(promise_id);
-
-            for (auto& arg: args) {
-                arg->side_effect(type, transitive);
-            }
-
-            // Take the most recent argument
-            Argument* arg = args.back();
-
-            effects_table.insert(type,
-                                 varname,
-                                 transitive,
-                                 env_id,
-                                 source_fun_id,
-                                 source_call_id,
-                                 source_arg_id,
-                                 source_formal_pos,
-                                 arg->get_fun_id(),
-                                 arg->get_call_id(),
-                                 promise_id,
-                                 arg->get_formal_pos(),
-                                 ENVTRACER_NA_STRING);
-
-            /* loop back to next promise on the stack so it can be made
-             * responsible for transitive write. */
-            continue;
-        }
-    }
-}
-
 void variable_assign(instrumentr_tracer_t tracer,
                      instrumentr_callback_t callback,
                      instrumentr_state_t state,
@@ -1961,19 +1873,22 @@ void variable_assign(instrumentr_tracer_t tracer,
     ArgumentTable& arg_table = tracing_state.get_argument_table();
     EffectsTable& effects_table = tracing_state.get_effects_table();
     EnvironmentTable& env_table = tracing_state.get_environment_table();
+    EnvironmentAccessTable& env_access_table =
+        tracing_state.get_environment_access_table();
     Backtrace& backtrace = tracing_state.get_backtrace();
 
     instrumentr_char_t charval = instrumentr_symbol_get_element(symbol);
     std::string varname = instrumentr_char_get_element(charval);
+    std::string value_type = get_sexp_type(instrumentr_value_get_sexp(value));
 
-    process_writes(state,
-                   environment,
-                   'A',
-                   varname,
-                   arg_table,
-                   env_table,
-                   effects_table,
-                   backtrace);
+    process_reads_and_writes(state,
+                             environment,
+                             'A',
+                             varname,
+                             value_type,
+                             env_table,
+                             env_access_table,
+                             backtrace);
 }
 
 void variable_define(instrumentr_tracer_t tracer,
@@ -1987,19 +1902,22 @@ void variable_define(instrumentr_tracer_t tracer,
     ArgumentTable& arg_table = tracing_state.get_argument_table();
     EffectsTable& effects_table = tracing_state.get_effects_table();
     EnvironmentTable& env_table = tracing_state.get_environment_table();
+    EnvironmentAccessTable& env_access_table =
+        tracing_state.get_environment_access_table();
     Backtrace& backtrace = tracing_state.get_backtrace();
 
     instrumentr_char_t charval = instrumentr_symbol_get_element(symbol);
     std::string varname = instrumentr_char_get_element(charval);
+    std::string value_type = get_sexp_type(instrumentr_value_get_sexp(value));
 
-    process_writes(state,
-                   environment,
-                   'D',
-                   varname,
-                   arg_table,
-                   env_table,
-                   effects_table,
-                   backtrace);
+    process_reads_and_writes(state,
+                             environment,
+                             'D',
+                             varname,
+                             value_type,
+                             env_table,
+                             env_access_table,
+                             backtrace);
 }
 
 void variable_remove(instrumentr_tracer_t tracer,
@@ -2012,19 +1930,49 @@ void variable_remove(instrumentr_tracer_t tracer,
     ArgumentTable& arg_table = tracing_state.get_argument_table();
     EffectsTable& effects_table = tracing_state.get_effects_table();
     EnvironmentTable& env_table = tracing_state.get_environment_table();
+    EnvironmentAccessTable& env_access_table =
+        tracing_state.get_environment_access_table();
     Backtrace& backtrace = tracing_state.get_backtrace();
 
     instrumentr_char_t charval = instrumentr_symbol_get_element(symbol);
     std::string varname = instrumentr_char_get_element(charval);
+    std::string value_type = ENVTRACER_NA_STRING;
 
-    process_writes(state,
-                   environment,
-                   'R',
-                   varname,
-                   arg_table,
-                   env_table,
-                   effects_table,
-                   backtrace);
+    process_reads_and_writes(state,
+                             environment,
+                             'R',
+                             varname,
+                             value_type,
+                             env_table,
+                             env_access_table,
+                             backtrace);
+}
+
+void environment_ls(instrumentr_tracer_t tracer,
+                    instrumentr_callback_t callback,
+                    instrumentr_state_t state,
+                    instrumentr_application_t application,
+                    instrumentr_environment_t environment,
+                    instrumentr_character_t result) {
+    TracingState& tracing_state = TracingState::lookup(state);
+    ArgumentTable& arg_table = tracing_state.get_argument_table();
+    EffectsTable& effects_table = tracing_state.get_effects_table();
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+    EnvironmentAccessTable& env_access_table =
+        tracing_state.get_environment_access_table();
+    Backtrace& backtrace = tracing_state.get_backtrace();
+
+    std::string varname = ENVTRACER_NA_STRING;
+    std::string value_type = ENVTRACER_NA_STRING;
+
+    process_reads_and_writes(state,
+                             environment,
+                             'S',
+                             varname,
+                             value_type,
+                             env_table,
+                             env_access_table,
+                             backtrace);
 }
 
 void value_finalize(instrumentr_tracer_t tracer,

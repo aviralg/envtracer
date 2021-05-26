@@ -88,6 +88,11 @@ SEXP r_envtracer_tracer_create() {
     instrumentr_object_release(callback);
 
     callback = instrumentr_callback_create_from_c_function(
+        (void*) (variable_exists), INSTRUMENTR_EVENT_VARIABLE_EXISTS);
+    instrumentr_tracer_set_callback(tracer, callback);
+    instrumentr_object_release(callback);
+
+    callback = instrumentr_callback_create_from_c_function(
         (void*) (function_context_lookup),
         INSTRUMENTR_EVENT_FUNCTION_CONTEXT_LOOKUP);
     instrumentr_tracer_set_callback(tracer, callback);
@@ -105,6 +110,11 @@ SEXP r_envtracer_tracer_create() {
 
     callback = instrumentr_callback_create_from_c_function(
         (void*) (variable_remove), INSTRUMENTR_EVENT_VARIABLE_REMOVAL);
+    instrumentr_tracer_set_callback(tracer, callback);
+    instrumentr_object_release(callback);
+
+    callback = instrumentr_callback_create_from_c_function(
+        (void*) (environment_ls), INSTRUMENTR_EVENT_ENVIRONMENT_LS);
     instrumentr_tracer_set_callback(tracer, callback);
     instrumentr_object_release(callback);
 

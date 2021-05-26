@@ -37,6 +37,13 @@ void closure_call_exit_callback(instrumentr_tracer_t tracer,
                                 instrumentr_closure_t closure,
                                 instrumentr_call_t call);
 
+void builtin_call_entry_callback(instrumentr_tracer_t tracer,
+                                 instrumentr_callback_t callback,
+                                 instrumentr_state_t state,
+                                 instrumentr_application_t application,
+                                 instrumentr_builtin_t builtin,
+                                 instrumentr_call_t call);
+
 void builtin_call_exit_callback(instrumentr_tracer_t tracer,
                                 instrumentr_callback_t callback,
                                 instrumentr_state_t state,
@@ -81,6 +88,20 @@ void variable_lookup(instrumentr_tracer_t tracer,
                      instrumentr_symbol_t symbol,
                      instrumentr_value_t value,
                      instrumentr_environment_t environment);
+
+void variable_exists(instrumentr_tracer_t tracer,
+                     instrumentr_callback_t callback,
+                     instrumentr_state_t state,
+                     instrumentr_application_t application,
+                     instrumentr_symbol_t symbol,
+                     instrumentr_environment_t environment);
+
+void environment_ls(instrumentr_tracer_t tracer,
+                    instrumentr_callback_t callback,
+                    instrumentr_state_t state,
+                    instrumentr_application_t application,
+                    instrumentr_environment_t environment,
+                    instrumentr_character_t result);
 
 void function_context_lookup(instrumentr_tracer_t tracer,
                              instrumentr_callback_t callback,
