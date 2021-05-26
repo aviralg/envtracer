@@ -10,27 +10,31 @@
 
 class EnvironmentAccessTable {
   public:
-    EnvironmentAccessTable() {
+    EnvironmentAccessTable(): library_counter_(0) {
     }
 
     ~EnvironmentAccessTable() {
         for (auto iter = table_.begin(); iter != table_.end(); ++iter) {
-            delete iter->second;
+            delete *iter;
         }
         table_.clear();
     }
 
     EnvironmentAccess* insert(EnvironmentAccess* env_access) {
-        auto result = table_.insert({env_access->get_call_id(), env_access});
-        return result.first->second;
+        table_.push_back(env_access);
+        return env_access;
     }
 
-    EnvironmentAccess* lookup(int call_id) {
-        auto result = table_.find(call_id);
-        if (result == table_.end()) {
-            Rf_error("cannot find call with id %d", call_id);
-        }
-        return result->second;
+    void push_library() {
+        ++library_counter_;
+    }
+
+    void pop_library() {
+        --library_counter_;
+    }
+
+    bool inside_library() const {
+        return library_counter_ > 0;
     }
 
     SEXP to_sexp() {
@@ -54,7 +58,7 @@ class EnvironmentAccessTable {
         int index = 0;
         for (auto iter = table_.begin(); iter != table_.end();
              ++iter, ++index) {
-            EnvironmentAccess* env_access = iter->second;
+            EnvironmentAccess* env_access = *iter;
 
             env_access->to_sexp(index,
                                 r_call_id,
@@ -111,7 +115,8 @@ class EnvironmentAccessTable {
     }
 
   private:
-    std::unordered_map<int, EnvironmentAccess*> table_;
+    int library_counter_;
+    std::vector<EnvironmentAccess*> table_;
 };
 
 #endif /* ENVTRACER_ENVIRONMENT_ACCESS_TABLE_H */

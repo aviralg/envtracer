@@ -871,6 +871,16 @@ void closure_call_entry_callback(instrumentr_tracer_t tracer,
     Backtrace& backtrace = tracing_state.get_backtrace();
 
     backtrace.push(call);
+
+    std::string closure_name =
+        charptr_to_string(instrumentr_closure_get_name(closure));
+
+    EnvironmentAccessTable& env_access_table =
+        tracing_state.get_environment_access_table();
+
+    if (closure_name == "library" || closure_name == "loadNamespace") {
+        env_access_table.push_library();
+    }
 }
 
 // void handle_call_result(instrumentr_closure_t closure,
@@ -918,30 +928,6 @@ void inspect_environments(instrumentr_state_t state,
     }
 
     const std::string name(instrumentr_closure_get_name(closure));
-
-    if (name == "eval" || name == "evalq") {
-        instrumentr_environment_t call_env =
-            instrumentr_call_get_environment(call);
-
-        instrumentr_symbol_t envir_sym =
-            instrumentr_state_get_symbol(state, "envir");
-
-        instrumentr_value_t eval_env =
-            instrumentr_environment_lookup(call_env, envir_sym);
-
-        if (instrumentr_value_is_promise(eval_env)) {
-            instrumentr_promise_t eval_env_prom =
-                instrumentr_value_as_promise(eval_env);
-            instrumentr_value_t val =
-                instrumentr_promise_get_value(eval_env_prom);
-
-            if (instrumentr_value_is_environment(val)) {
-                Environment* env =
-                    env_table.insert(instrumentr_value_as_environment(val));
-                env->add_eval("eval");
-            }
-        }
-    }
 
     if (name == "new.env" || name == "list2env") {
         if (instrumentr_call_has_result(call)) {
@@ -1171,6 +1157,12 @@ void closure_call_exit_callback(instrumentr_tracer_t tracer,
         tracing_state.get_environment_constructor_table();
     add_constructor(state, closure, call, env_cons_tab);
 
+    std::string closure_name =
+        charptr_to_string(instrumentr_closure_get_name(closure));
+
+    if (closure_name == "library" || closure_name == "loadNamespace") {
+        env_access_table.pop_library();
+    }
     //
     // handle_call_result(closure, call, env_table);
 }
@@ -1642,6 +1634,10 @@ void subset_or_subassign_callback(instrumentr_tracer_t tracer,
         tracing_state.get_environment_access_table();
     Backtrace& backtrace = tracing_state.get_backtrace();
 
+    if (env_access_table.inside_library()) {
+        return;
+    }
+
     Environment* env = env_table.insert(instrumentr_value_as_environment(x));
 
     std::string varname = ENVTRACER_NA_STRING;
@@ -1715,6 +1711,10 @@ void process_reads_and_writes(instrumentr_state_t state,
     std::string fun_name("");
     int call_id = NA_INTEGER;
     int caller_index = type == 'S' ? 7 : 3;
+
+    if (env_access_table.inside_library()) {
+        return;
+    }
 
     EnvironmentAccess* env_access = nullptr;
 
