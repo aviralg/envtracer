@@ -657,6 +657,23 @@ void handle_environment_locking(instrumentr_state_t state,
     }
 }
 
+void builtin_call_entry_callback(instrumentr_tracer_t tracer,
+                                 instrumentr_callback_t callback,
+                                 instrumentr_state_t state,
+                                 instrumentr_application_t application,
+                                 instrumentr_builtin_t builtin,
+                                 instrumentr_call_t call) {
+    TracingState& tracing_state = TracingState::lookup(state);
+
+    instrumentr_call_stack_t call_stack =
+        instrumentr_state_get_call_stack(state);
+
+    /* handle backtrace */
+    Backtrace& backtrace = tracing_state.get_backtrace();
+
+    backtrace.push(call);
+}
+
 void builtin_call_exit_callback(instrumentr_tracer_t tracer,
                                 instrumentr_callback_t callback,
                                 instrumentr_state_t state,
@@ -670,6 +687,11 @@ void builtin_call_exit_callback(instrumentr_tracer_t tracer,
 
     instrumentr_call_stack_t call_stack =
         instrumentr_state_get_call_stack(state);
+
+    /* handle backtrace */
+    Backtrace& backtrace = tracing_state.get_backtrace();
+
+    backtrace.pop();
 
     builtin_environment_access(call_stack, call, builtin, env_access_table);
 
@@ -693,8 +715,6 @@ void builtin_call_exit_callback(instrumentr_tracer_t tracer,
     CallTable& call_tab = tracing_state.get_call_table();
     ArgumentReflectionTable& arg_ref_tab = tracing_state.get_arg_ref_tab();
     CallReflectionTable& call_ref_tab = tracing_state.get_call_ref_tab();
-
-    Backtrace& backtrace = tracing_state.get_backtrace();
 
     mark_promises(
         ref_call_id, ref_type, arg_tab, arg_ref_tab, call_stack, backtrace);
