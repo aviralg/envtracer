@@ -21,7 +21,7 @@ class Environment {
         , source_call_id_(NA_INTEGER)
         , dispatch_(false)
         , backtrace_(ENVTRACER_NA_STRING)
-        , event_seq_("") {
+        , event_seq_("|") {
     }
 
     int get_id() {
@@ -102,8 +102,9 @@ class Environment {
         dispatch_ = true;
     }
 
-    void add_event(char event) {
-        event_seq_.push_back(event);
+    void add_event(const std::string& event) {
+        event_seq_.append(event);
+        event_seq_.append("|");
     }
 
     void lookup() {

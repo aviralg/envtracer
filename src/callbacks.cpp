@@ -319,13 +319,12 @@ bool has_minus_one_argument(instrumentr_call_t call) {
     return valid;
 }
 
-instrumentr_call_t get_caller(instrumentr_call_stack_t call_stack,
-                              int index = 1) {
+instrumentr_call_t get_caller(instrumentr_call_stack_t call_stack, int& index) {
     int env_id = NA_INTEGER;
 
-    for (int i = index; i < instrumentr_call_stack_get_size(call_stack); ++i) {
+    for (; index < instrumentr_call_stack_get_size(call_stack); ++index) {
         instrumentr_frame_t frame =
-            instrumentr_call_stack_peek_frame(call_stack, i);
+            instrumentr_call_stack_peek_frame(call_stack, index);
 
         if (instrumentr_frame_is_promise(frame) && env_id == NA_INTEGER) {
             instrumentr_promise_t promise = instrumentr_frame_as_promise(frame);
@@ -365,18 +364,46 @@ instrumentr_call_t get_caller(instrumentr_call_stack_t call_stack,
 instrumentr_call_t get_caller_info(instrumentr_call_stack_t call_stack,
                                    int& fun_id,
                                    int& call_id,
-                                   int index = 1) {
+                                   std::string& fun_name,
+                                   int& index) {
     instrumentr_call_t call = get_caller(call_stack, index);
 
     fun_id = NA_INTEGER;
     call_id = NA_INTEGER;
+    fun_name = ENVTRACER_NA_STRING;
 
     if (call != nullptr) {
+        instrumentr_closure_t closure =
+            instrumentr_value_as_closure(instrumentr_call_get_function(call));
         call_id = instrumentr_call_get_id(call);
-        fun_id = instrumentr_value_get_id(instrumentr_call_get_function(call));
+        fun_id = instrumentr_closure_get_id(closure);
+        fun_name = charptr_to_string(instrumentr_closure_get_name(closure));
     }
 
     return call;
+}
+
+void get_three_caller_info(instrumentr_call_stack_t call_stack,
+                           int& fun_id,
+                           int& call_id,
+                           int& source_fun_id_1,
+                           int& source_call_id_1,
+                           int& source_fun_id_2,
+                           int& source_call_id_2,
+                           int& source_fun_id_3,
+                           int& source_call_id_3,
+                           int& index) {
+    std::string fun_name;
+    get_caller_info(call_stack, fun_id, call_id, fun_name, index);
+    ++index;
+    get_caller_info(
+        call_stack, source_fun_id_1, source_call_id_1, fun_name, index);
+    ++index;
+    get_caller_info(
+        call_stack, source_fun_id_2, source_call_id_2, fun_name, index);
+    ++index;
+    get_caller_info(
+        call_stack, source_fun_id_3, source_call_id_3, fun_name, index);
 }
 
 int get_environment_depth(instrumentr_call_stack_t call_stack,
@@ -411,13 +438,13 @@ int get_environment_depth(instrumentr_call_stack_t call_stack,
     return NA_INTEGER;
 }
 
-void handle_builtin_environment_access(
-    instrumentr_state_t state,
-    instrumentr_call_stack_t call_stack,
-    instrumentr_call_t call,
-    instrumentr_builtin_t builtin,
-    const std::string& backtrace,
-    EnvironmentAccessTable& env_access_table) {
+void handle_builtin_environment_access(instrumentr_state_t state,
+                                       instrumentr_call_stack_t call_stack,
+                                       instrumentr_call_t call,
+                                       instrumentr_builtin_t builtin,
+                                       const std::string& backtrace,
+                                       EnvironmentAccessTable& env_access_table,
+                                       EnvironmentTable& env_table) {
     std::string fun_name =
         charptr_to_string(instrumentr_builtin_get_name(builtin));
 
@@ -429,9 +456,11 @@ void handle_builtin_environment_access(
 
     int env_id = NA_INTEGER;
 
+    instrumentr_environment_t environment = nullptr;
     if (instrumentr_call_has_result(call)) {
         instrumentr_value_t result = instrumentr_call_get_result(call);
         if (instrumentr_value_is_environment(result)) {
+            environment = instrumentr_value_as_environment(result);
             env_id = instrumentr_value_get_id(result);
         }
     }
@@ -441,11 +470,14 @@ void handle_builtin_environment_access(
 
     int source_fun_id = NA_INTEGER;
     int source_call_id = NA_INTEGER;
+    std::string source_fun_name = ENVTRACER_NA_STRING;
 
     int call_id = NA_INTEGER;
+    int index = 1;
 
     if (fun_name == "as.environment" || fun_name == "pos.to.env") {
-        get_caller_info(call_stack, source_fun_id, source_call_id, 1);
+        get_caller_info(
+            call_stack, source_fun_id, source_call_id, source_fun_name, index);
 
         call_id = instrumentr_call_get_id(call);
 
@@ -474,7 +506,8 @@ void handle_builtin_environment_access(
 
     else if (fun_name == "sys.call" || fun_name == "sys.frame" ||
              fun_name == "sys.function") {
-        get_caller_info(call_stack, source_fun_id, source_call_id, 1);
+        get_caller_info(
+            call_stack, source_fun_id, source_call_id, source_fun_name, index);
 
         call_id = instrumentr_call_get_id(call);
 
@@ -510,7 +543,8 @@ void handle_builtin_environment_access(
     }
 
     else if (fun_name == "sys.parent" || fun_name == "parent.frame") {
-        get_caller_info(call_stack, source_fun_id, source_call_id, 1);
+        get_caller_info(
+            call_stack, source_fun_id, source_call_id, source_fun_name, index);
 
         call_id = instrumentr_call_get_id(call);
 
@@ -560,7 +594,8 @@ void handle_builtin_environment_access(
     }
 
     else if (fun_name == "environment") {
-        get_caller_info(call_stack, source_fun_id, source_call_id, 1);
+        get_caller_info(
+            call_stack, source_fun_id, source_call_id, source_fun_name, index);
 
         call_id = instrumentr_call_get_id(call);
 
@@ -591,7 +626,8 @@ void handle_builtin_environment_access(
     }
 
     else if (fun_name == "lockEnvironment") {
-        get_caller_info(call_stack, source_fun_id, source_call_id, 1);
+        get_caller_info(
+            call_stack, source_fun_id, source_call_id, source_fun_name, index);
 
         call_id = instrumentr_call_get_id(call);
 
@@ -605,14 +641,9 @@ void handle_builtin_environment_access(
             instrumentr_pairlist_get_element(arguments, 1);
 
         int bindings = NA_LOGICAL;
-        int env_id = NA_INTEGER;
 
         const std::string env_type =
             get_sexp_type(instrumentr_value_get_sexp(env_val));
-
-        if (instrumentr_value_is_environment(env_val)) {
-            env_id = instrumentr_value_get_id(env_val);
-        }
 
         if (instrumentr_value_is_logical(bindings_val)) {
             bindings = LOGICAL_ELT(instrumentr_value_get_sexp(bindings_val), 0);
@@ -628,7 +659,6 @@ void handle_builtin_environment_access(
                                            fun_name,
                                            env_type);
         env_access->set_bindings(bindings);
-
     }
 
     else if (fun_name == "lockBinding" || fun_name == "unlockBinding") {
@@ -641,15 +671,10 @@ void handle_builtin_environment_access(
         instrumentr_value_t env_val =
             instrumentr_pairlist_get_element(arguments, 1);
 
-        int env_id = NA_INTEGER;
         std::string symbol = ENVTRACER_NA_STRING;
 
         const std::string env_type =
             get_sexp_type(instrumentr_value_get_sexp(env_val));
-
-        if (instrumentr_value_is_environment(env_val)) {
-            env_id = instrumentr_value_get_id(env_val);
-        }
 
         if (instrumentr_value_is_symbol(sym_val)) {
             symbol =
@@ -672,7 +697,100 @@ void handle_builtin_environment_access(
 
     if (env_access != nullptr) {
         env_access_table.insert(env_access);
+
+        if (environment != nullptr) {
+            Environment* env = env_table.insert(environment);
+
+            env->add_event(fun_name);
+        }
     }
+}
+
+void handle_builtin_environment_construction(
+    instrumentr_state_t state,
+    instrumentr_call_stack_t call_stack,
+    instrumentr_call_t call,
+    instrumentr_builtin_t builtin,
+    const std::string& backtrace,
+    EnvironmentConstructorTable& env_constructor_table) {
+    std::string fun_name =
+        charptr_to_string(instrumentr_builtin_get_name(builtin));
+
+    if (fun_name != "new.env") {
+        return;
+    }
+
+    if (!instrumentr_call_has_result(call)) {
+        return;
+    }
+
+    instrumentr_value_t result = instrumentr_call_get_result(call);
+
+    instrumentr_environment_t result_env =
+        instrumentr_value_as_environment(result);
+
+    int result_env_id = instrumentr_environment_get_id(result_env);
+
+    int index = 1;
+    int fun_id = NA_INTEGER;
+    int call_id = NA_INTEGER;
+    int source_fun_id_1 = NA_INTEGER;
+    int source_call_id_1 = NA_INTEGER;
+    int source_fun_id_2 = NA_INTEGER;
+    int source_call_id_2 = NA_INTEGER;
+    int source_fun_id_3 = NA_INTEGER;
+    int source_call_id_3 = NA_INTEGER;
+
+    get_three_caller_info(call_stack,
+                          fun_id,
+                          call_id,
+                          source_fun_id_1,
+                          source_call_id_1,
+                          source_fun_id_2,
+                          source_call_id_2,
+                          source_fun_id_3,
+                          source_call_id_3,
+                          index);
+
+    instrumentr_value_t arg_val = instrumentr_call_get_arguments(call);
+    instrumentr_pairlist_t arguments = instrumentr_value_as_pairlist(arg_val);
+
+    instrumentr_value_t hash_val =
+        instrumentr_pairlist_get_element(arguments, 0);
+    int hash = extract_logical(hash_val);
+
+    instrumentr_value_t parent_val =
+        instrumentr_pairlist_get_element(arguments, 1);
+    int parent_env_id = NA_INTEGER;
+    int parent_env_depth = NA_INTEGER;
+
+    if (parent_val != NULL && instrumentr_value_is_environment(parent_val)) {
+        parent_env_id = instrumentr_value_get_id(parent_val);
+        parent_env_depth = get_environment_depth(call_stack, parent_env_id, 0);
+    }
+
+    instrumentr_value_t size_val =
+        instrumentr_pairlist_get_element(arguments, 2);
+    int size = extract_integer(size_val);
+
+    int frame_count = instrumentr_environment_get_frame_count(result_env);
+
+    EnvironmentConstructor* cons = new EnvironmentConstructor(fun_id,
+                                                              call_id,
+                                                              source_fun_id_1,
+                                                              source_call_id_1,
+                                                              source_fun_id_2,
+                                                              source_call_id_2,
+                                                              source_fun_id_3,
+                                                              source_call_id_3,
+                                                              hash,
+                                                              parent_env_id,
+                                                              parent_env_depth,
+                                                              size,
+                                                              frame_count,
+                                                              backtrace);
+
+    env_constructor_table.insert(cons);
 }
 
 void builtin_call_entry_callback(instrumentr_tracer_t tracer,
@@ -700,8 +818,13 @@ void builtin_call_exit_callback(instrumentr_tracer_t tracer,
                                 instrumentr_call_t call) {
     TracingState& tracing_state = TracingState::lookup(state);
 
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+
     EnvironmentAccessTable& env_access_table =
         tracing_state.get_environment_access_table();
+
+    EnvironmentConstructorTable& env_constructor_table =
+        tracing_state.get_environment_constructor_table();
 
     instrumentr_call_stack_t call_stack =
         instrumentr_state_get_call_stack(state);
@@ -714,7 +837,15 @@ void builtin_call_exit_callback(instrumentr_tracer_t tracer,
                                       call,
                                       builtin,
                                       backtrace.to_string(),
-                                      env_access_table);
+                                      env_access_table,
+                                      env_table);
+
+    handle_builtin_environment_construction(state,
+                                            call_stack,
+                                            call,
+                                            builtin,
+                                            backtrace.to_string(),
+                                            env_constructor_table);
 
     backtrace.pop();
 }
@@ -881,194 +1012,6 @@ void closure_call_entry_callback(instrumentr_tracer_t tracer,
 //    else if (instrumentr_value_is_environment(result))
 //}
 
-void inspect_environments(instrumentr_state_t state,
-                          instrumentr_closure_t closure,
-                          instrumentr_call_t call,
-                          EnvironmentTable& env_table) {
-    if (!instrumentr_closure_has_name(closure)) {
-        return;
-    }
-
-    const std::string name(instrumentr_closure_get_name(closure));
-
-    if (name == "new.env" || name == "list2env") {
-        if (instrumentr_call_has_result(call)) {
-            instrumentr_value_t result = instrumentr_call_get_result(call);
-
-            if (instrumentr_value_is_environment(result)) {
-                instrumentr_environment_t environment =
-                    instrumentr_value_as_environment(result);
-
-                instrumentr_call_t caller =
-                    get_caller(instrumentr_state_get_call_stack(state));
-
-                int closure_id = NA_INTEGER;
-                int call_id = NA_INTEGER;
-
-                if (caller != nullptr) {
-                    instrumentr_call_stack_t call_stack =
-                        instrumentr_state_get_call_stack(state);
-                    instrumentr_call_t call = get_caller(call_stack);
-
-                    if (call == nullptr) {
-                        return;
-                    }
-
-                    instrumentr_value_t fun =
-                        instrumentr_call_get_function(call);
-                    instrumentr_closure_t closure =
-                        instrumentr_value_as_closure(fun);
-
-                    closure_id = instrumentr_closure_get_id(closure),
-                    call_id = instrumentr_call_get_id(call);
-                }
-
-                Environment* env = env_table.insert(environment);
-                env->set_source(name, closure_id, call_id);
-            }
-        }
-    }
-
-    if (name == "lockEnvironment" || name == "lockBinding" ||
-        name == "unlockBinding") {
-        char event_type =
-            name == "lockBinding" ? '(' : (name == "unlockBinding" ? ')' : '*');
-        instrumentr_environment_t environment =
-            instrumentr_call_get_environment(call);
-
-        instrumentr_value_t value = instrumentr_environment_lookup(
-            environment, instrumentr_state_get_symbol(state, "env"));
-
-        if (instrumentr_value_is_promise(value)) {
-            value = instrumentr_promise_get_value(
-                instrumentr_value_as_promise(value));
-        }
-
-        if (instrumentr_value_is_environment(value)) {
-            Environment* env =
-                env_table.insert(instrumentr_value_as_environment(value));
-            env->add_event(event_type);
-        }
-    }
-}
-
-void add_constructor(instrumentr_state_t state,
-                     instrumentr_closure_t closure,
-                     instrumentr_call_t call,
-                     EnvironmentConstructorTable& env_cons_tab) {
-    const char* name = instrumentr_closure_get_name(closure);
-    std::string fun_name = name == nullptr ? "" : name;
-
-    if (fun_name != "list2env" && fun_name != "new.env") {
-        return;
-    }
-
-    int call_id = instrumentr_call_get_id(call);
-    int fun_id = instrumentr_closure_get_id(closure);
-
-    instrumentr_environment_t call_env = instrumentr_call_get_environment(call);
-
-    if (!instrumentr_call_has_result(call)) {
-        return;
-    }
-
-    instrumentr_call_stack_t call_stack =
-        instrumentr_state_get_call_stack(state);
-
-    instrumentr_language_t call_expr_lang =
-        instrumentr_call_get_expression(call);
-    std::vector<std::string> call_expr = instrumentr_sexp_to_string(
-        instrumentr_language_get_sexp(call_expr_lang), true);
-
-    instrumentr_value_t result = instrumentr_call_get_result(call);
-    instrumentr_environment_t result_env =
-        instrumentr_value_as_environment(result);
-
-    int result_env_id = instrumentr_environment_get_id(result_env);
-
-    int envir_id = NA_INTEGER;
-    std::string envir_expr = ENVTRACER_NA_STRING;
-    int envir_depth = NA_INTEGER;
-
-    if (fun_name == "list2env") {
-        instrumentr_value_t envir_val;
-        std::tie(envir_val, envir_expr) =
-            lookup_environment(state, call_env, "envir");
-        if (envir_val != NULL && instrumentr_value_is_environment(envir_val)) {
-            envir_id = instrumentr_value_get_id(envir_val);
-            envir_depth = get_environment_depth(call_stack, envir_id, 0);
-        }
-    }
-
-    instrumentr_value_t hash_val;
-    std::string hash_expr = ENVTRACER_NA_STRING;
-    std::tie(hash_val, hash_expr) = lookup_environment(state, call_env, "hash");
-    int hash = extract_logical(hash_val);
-
-    int parent_env_id = NA_INTEGER;
-    std::string parent_expr = ENVTRACER_NA_STRING;
-    int parent_env_depth = NA_INTEGER;
-    {
-        instrumentr_value_t parent_val;
-        std::tie(parent_val, parent_expr) =
-            lookup_environment(state, call_env, "parent");
-
-        if (parent_val != NULL &&
-            instrumentr_value_is_environment(parent_val)) {
-            parent_env_id = instrumentr_value_get_id(parent_val);
-            parent_env_depth =
-                get_environment_depth(call_stack, parent_env_id, 0);
-        }
-    }
-
-    instrumentr_value_t size_val;
-    std::string size_expr;
-    std::tie(size_val, size_expr) = lookup_environment(state, call_env, "size");
-    int size = extract_integer(size_val);
-
-    int source_call_id = NA_INTEGER;
-    int source_fun_id = NA_INTEGER;
-    {
-        instrumentr_call_t source_call = get_caller(call_stack);
-        if (source_call != NULL) {
-            source_call_id = instrumentr_call_get_id(source_call);
-            source_fun_id = instrumentr_value_get_id(
-                instrumentr_call_get_function(source_call));
-        }
-    }
-
-    int chain_length = NA_INTEGER;
-    {
-        chain_length = 0;
-        SEXP r_parent_env = instrumentr_environment_get_sexp(result_env);
-        while (ENCLOS(r_parent_env) != R_EmptyEnv) {
-            r_parent_env = ENCLOS(r_parent_env);
-            ++chain_length;
-        }
-    }
-
-    EnvironmentConstructor* cons = new EnvironmentConstructor(call_id,
-                                                              call_expr.front(),
-                                                              fun_id,
-                                                              fun_name,
-                                                              result_env_id,
-                                                              envir_expr,
-                                                              envir_id,
-                                                              envir_depth,
-                                                              hash_expr,
-                                                              hash,
-                                                              parent_expr,
-                                                              parent_env_id,
-                                                              parent_env_depth,
-                                                              size_expr,
-                                                              size,
-                                                              chain_length,
-                                                              source_call_id,
-                                                              source_fun_id);
-
-    env_cons_tab.insert(cons);
-}
-
 void closure_call_exit_callback(instrumentr_tracer_t tracer,
                                 instrumentr_callback_t callback,
                                 instrumentr_state_t state,
@@ -1101,14 +1044,6 @@ void closure_call_exit_callback(instrumentr_tracer_t tracer,
     Backtrace& backtrace = tracing_state.get_backtrace();
 
     backtrace.pop();
-
-    /* handle arguments */
-    EnvironmentTable& env_table = tracing_state.get_environment_table();
-    inspect_environments(state, closure, call, env_table);
-
-    EnvironmentConstructorTable& env_cons_tab =
-        tracing_state.get_environment_constructor_table();
-    add_constructor(state, closure, call, env_cons_tab);
 
     instrumentr_call_stack_t call_stack =
         instrumentr_state_get_call_stack(state);
@@ -1642,7 +1577,8 @@ void subset_or_subassign_callback(instrumentr_tracer_t tracer,
 
     instrumentr_call_stack_t call_stack =
         instrumentr_state_get_call_stack(state);
-    instrumentr_call_t source_call = get_caller(call_stack);
+    int frame_index = 1;
+    instrumentr_call_t source_call = get_caller(call_stack, frame_index);
 
     if (source_call != NULL) {
         source_call_id = instrumentr_call_get_id(source_call);
@@ -1667,7 +1603,7 @@ void subset_or_subassign_callback(instrumentr_tracer_t tracer,
 
 void process_reads_and_writes(instrumentr_state_t state,
                               instrumentr_environment_t environment,
-                              const char type,
+                              const std::string& event,
                               const std::string& varname,
                               const std::string& value_type,
                               EnvironmentTable& environment_table,
@@ -1676,11 +1612,11 @@ void process_reads_and_writes(instrumentr_state_t state,
     instrumentr_call_stack_t call_stack =
         instrumentr_state_get_call_stack(state);
     Environment* env = environment_table.insert(environment);
-    env->add_event(type);
+    env->add_event(event);
 
     std::string fun_name("");
     int call_id = NA_INTEGER;
-    int caller_index = type == 'S' ? 7 : 3;
+    int caller_index = event == "S" ? 7 : 3;
 
     int time = instrumentr_state_get_time(state);
 
@@ -1695,13 +1631,13 @@ void process_reads_and_writes(instrumentr_state_t state,
     get_call_info(
         call_stack, caller_index, false, false, true, fun_name, call_id);
 
-    if ((type == 'L' &&
+    if ((event == "L" &&
          (fun_name == "get" || fun_name == "get0" || fun_name == "mget")) ||
-        (type == 'A' && (fun_name == "assign")) ||
-        (type == 'D' && (fun_name == "assign")) ||
-        (type == 'E' && (fun_name == "exists")) ||
-        (type == 'R' && (fun_name == "remove" || fun_name == "rm")) ||
-        (type == 'S' && (fun_name == "ls" || fun_name == "objects"))) {
+        (event == "A" && (fun_name == "assign")) ||
+        (event == "D" && (fun_name == "assign")) ||
+        (event == "E" && (fun_name == "exists")) ||
+        (event == "R" && (fun_name == "remove" || fun_name == "rm")) ||
+        (event == "S" && (fun_name == "ls" || fun_name == "objects"))) {
         /* get0 is called by dynGet */
         if (fun_name == "get0") {
             std::string parent_fun_name("");
@@ -1724,8 +1660,8 @@ void process_reads_and_writes(instrumentr_state_t state,
         int source_fun_id = NA_INTEGER;
         int source_call_id = NA_INTEGER;
 
-        instrumentr_call_t source_call =
-            get_caller(call_stack, caller_index + 1);
+        ++caller_index;
+        instrumentr_call_t source_call = get_caller(call_stack, caller_index);
 
         if (source_call != NULL) {
             source_call_id = instrumentr_call_get_id(source_call);
@@ -1746,12 +1682,14 @@ void process_reads_and_writes(instrumentr_state_t state,
     }
 
     if ((env_access == nullptr) && env->inside_eval()) {
-        std::string fun_name(1, type);
+        std::string fun_name = event;
 
         int source_fun_id = NA_INTEGER;
         int source_call_id = NA_INTEGER;
 
-        instrumentr_call_t source_call = get_caller(call_stack, 0);
+        int index = 0;
+
+        instrumentr_call_t source_call = get_caller(call_stack, index);
 
         if (source_call != NULL) {
             source_call_id = instrumentr_call_get_id(source_call);
@@ -1798,7 +1736,7 @@ void variable_lookup(instrumentr_tracer_t tracer,
 
     process_reads_and_writes(state,
                              environment,
-                             'L',
+                             "L",
                              varname,
                              value_type,
                              env_table,
@@ -1827,7 +1765,7 @@ void variable_exists(instrumentr_tracer_t tracer,
 
     process_reads_and_writes(state,
                              environment,
-                             'E',
+                             "E",
                              varname,
                              value_type,
                              env_table,
@@ -1893,7 +1831,7 @@ void variable_assign(instrumentr_tracer_t tracer,
 
     process_reads_and_writes(state,
                              environment,
-                             'A',
+                             "A",
                              varname,
                              value_type,
                              env_table,
@@ -1922,7 +1860,7 @@ void variable_define(instrumentr_tracer_t tracer,
 
     process_reads_and_writes(state,
                              environment,
-                             'D',
+                             "D",
                              varname,
                              value_type,
                              env_table,
@@ -1950,7 +1888,7 @@ void variable_remove(instrumentr_tracer_t tracer,
 
     process_reads_and_writes(state,
                              environment,
-                             'R',
+                             "R",
                              varname,
                              value_type,
                              env_table,
@@ -1977,7 +1915,7 @@ void environment_ls(instrumentr_tracer_t tracer,
 
     process_reads_and_writes(state,
                              environment,
-                             'S',
+                             "S",
                              varname,
                              value_type,
                              env_table,
@@ -2161,8 +2099,10 @@ void gc_allocation_callback(instrumentr_tracer_t tracer,
 
     Environment* env = env_table.insert(environment);
 
+    int index = 0;
+
     instrumentr_call_t call =
-        get_caller(instrumentr_state_get_call_stack(state), 0);
+        get_caller(instrumentr_state_get_call_stack(state), index);
 
     if (call == nullptr) {
         return;
