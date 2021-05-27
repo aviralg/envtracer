@@ -6,15 +6,23 @@
 
 class EnvironmentAccess {
   public:
-    EnvironmentAccess(int call_id,
+    EnvironmentAccess(int time,
+                      int source_fun_id,
+                      int source_call_id,
+                      const std::string& backtrace,
                       int depth,
+                      int env_id,
+                      int call_id,
                       const std::string& fun_name,
                       const std::string& arg_type)
-        : call_id_(call_id)
+        : time_(time)
+        , source_fun_id_(source_fun_id)
+        , source_call_id_(source_call_id)
+        , backtrace_(backtrace)
         , depth_(depth)
+        , env_id_(NA_INTEGER)
+        , call_id_(call_id)
         , fun_name_(fun_name)
-        , source_fun_id_(NA_INTEGER)
-        , source_call_id_(NA_INTEGER)
         , arg_type_(arg_type)
         , n_(NA_INTEGER)
         , which_(NA_INTEGER)
@@ -22,8 +30,7 @@ class EnvironmentAccess {
         , x_char_(ENVTRACER_NA_STRING)
         , fun_id_(NA_INTEGER)
         , symbol_(ENVTRACER_NA_STRING)
-        , bindings_(NA_LOGICAL)
-        , env_id_(NA_INTEGER) {
+        , bindings_(NA_LOGICAL) {
     }
 
     int get_call_id() const {
@@ -70,11 +77,6 @@ class EnvironmentAccess {
         fun_id_ = fun_id;
     }
 
-    void set_source(int source_fun_id, int source_call_id) {
-        source_fun_id_ = source_fun_id;
-        source_call_id_ = source_call_id;
-    }
-
     void set_symbol(const std::string& symbol) {
         symbol_ = symbol;
     }
@@ -118,58 +120,15 @@ class EnvironmentAccess {
         SET_INTEGER_ELT(r_env_id, position, env_id_);
     }
 
-    static EnvironmentAccess* Which(int call_id,
-                                    int depth,
-                                    const std::string& fun_name,
-                                    const std::string& arg_type,
-                                    int which,
-                                    int env_id);
-
-    static EnvironmentAccess* N(int call_id,
-                                int depth,
-                                const std::string& fun_name,
-                                const std::string& arg_type,
-                                int n,
-                                int env_id);
-
-    static EnvironmentAccess* XInt(int call_id,
-                                   int depth,
-                                   const std::string& fun_name,
-                                   const std::string& arg_type,
-                                   int x_int);
-
-    static EnvironmentAccess* XChar(int call_id,
-                                    int depth,
-                                    const std::string& fun_name,
-                                    const std::string& arg_type,
-                                    const std::string& x_char);
-
-    static EnvironmentAccess* Fun(int call_id,
-                                  int depth,
-                                  const std::string& fun_name,
-                                  const std::string& arg_type,
-                                  int fun_id);
-
-    static EnvironmentAccess* Lock(int call_id,
-                                   int depth,
-                                   const std::string& fun_name,
-                                   const std::string& arg_type,
-                                   const std::string& symbol,
-                                   int bindings,
-                                   int env_id);
-
-    static EnvironmentAccess* RW(int call_id,
-                                 const std::string& fun_name,
-                                 const std::string& value_type,
-                                 const std::string& symbol,
-                                 int env_id);
-
   private:
-    int call_id_;
-    int depth_;
-    std::string fun_name_;
+    int time_;
     int source_fun_id_;
     int source_call_id_;
+    const std::string backtrace_;
+    int depth_;
+    int env_id_;
+    int call_id_;
+    std::string fun_name_;
     std::string arg_type_;
     int n_;
     int which_;
@@ -178,7 +137,6 @@ class EnvironmentAccess {
     int fun_id_;
     std::string symbol_;
     int bindings_;
-    int env_id_;
 };
 
 #endif /* ENVTRACER_ENVIRONMENT_ACCESS_H */
