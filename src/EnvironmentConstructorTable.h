@@ -28,14 +28,15 @@ class EnvironmentConstructorTable {
     SEXP to_sexp() {
         int size = table_.size();
 
-        SEXP r_fun_id = PROTECT(allocVector(INTSXP, size));
-        SEXP r_call_id = PROTECT(allocVector(INTSXP, size));
+        SEXP r_env_id = PROTECT(allocVector(INTSXP, size));
         SEXP r_source_fun_id_1 = PROTECT(allocVector(INTSXP, size));
         SEXP r_source_call_id_1 = PROTECT(allocVector(INTSXP, size));
         SEXP r_source_fun_id_2 = PROTECT(allocVector(INTSXP, size));
         SEXP r_source_call_id_2 = PROTECT(allocVector(INTSXP, size));
         SEXP r_source_fun_id_3 = PROTECT(allocVector(INTSXP, size));
         SEXP r_source_call_id_3 = PROTECT(allocVector(INTSXP, size));
+        SEXP r_source_fun_id_4 = PROTECT(allocVector(INTSXP, size));
+        SEXP r_source_call_id_4 = PROTECT(allocVector(INTSXP, size));
         SEXP r_hash = PROTECT(allocVector(INTSXP, size));
         SEXP r_parent_env_id = PROTECT(allocVector(INTSXP, size));
         SEXP r_parent_env_depth = PROTECT(allocVector(INTSXP, size));
@@ -47,14 +48,15 @@ class EnvironmentConstructorTable {
             EnvironmentConstructor* env_constructor = table_[index];
 
             env_constructor->to_sexp(index,
-                                     r_fun_id,
-                                     r_call_id,
+                                     r_env_id,
                                      r_source_fun_id_1,
                                      r_source_call_id_1,
                                      r_source_fun_id_2,
                                      r_source_call_id_2,
                                      r_source_fun_id_3,
                                      r_source_call_id_3,
+                                     r_source_fun_id_4,
+                                     r_source_call_id_4,
                                      r_hash,
                                      r_parent_env_id,
                                      r_parent_env_depth,
@@ -63,14 +65,15 @@ class EnvironmentConstructorTable {
                                      r_backtrace);
         }
 
-        std::vector<SEXP> columns({r_fun_id,
-                                   r_call_id,
+        std::vector<SEXP> columns({r_env_id,
                                    r_source_fun_id_1,
                                    r_source_call_id_1,
                                    r_source_fun_id_2,
                                    r_source_call_id_2,
                                    r_source_fun_id_3,
                                    r_source_call_id_3,
+                                   r_source_fun_id_4,
+                                   r_source_call_id_4,
                                    r_hash,
                                    r_parent_env_id,
                                    r_parent_env_depth,
@@ -78,14 +81,15 @@ class EnvironmentConstructorTable {
                                    r_frame_count,
                                    r_backtrace});
 
-        std::vector<std::string> names({"fun_id",
-                                        "call_id",
+        std::vector<std::string> names({"env_id",
                                         "source_fun_id_1",
                                         "source_call_id_1",
                                         "source_fun_id_2",
                                         "source_call_id_2",
                                         "source_fun_id_3",
                                         "source_call_id_3",
+                                        "source_fun_id_4",
+                                        "source_call_id_4",
                                         "hash",
                                         "parent_env_id",
                                         "parent_env_depth",
@@ -95,7 +99,7 @@ class EnvironmentConstructorTable {
 
         SEXP df = create_data_frame(names, columns);
 
-        UNPROTECT(14);
+        UNPROTECT(15);
 
         return df;
     }

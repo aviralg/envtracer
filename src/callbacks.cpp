@@ -914,7 +914,8 @@ void handle_builtin_environment_construction(
     int frame_count = instrumentr_environment_get_frame_count(result_env);
 
     EnvironmentConstructor* cons =
-        new EnvironmentConstructor(source_fun_id_1,
+        new EnvironmentConstructor(result_env_id,
+                                   source_fun_id_1,
                                    source_call_id_1,
                                    source_fun_id_2,
                                    source_call_id_2,
@@ -2289,8 +2290,22 @@ void eval_call_entry(instrumentr_tracer_t tracer,
                      instrumentr_environment_t environment) {
     TracingState& tracing_state = TracingState::lookup(state);
     EnvironmentTable& env_table = tracing_state.get_environment_table();
+    EvalTable& eval_table = tracing_state.get_eval_table();
+    Backtrace& backtrace = tracing_state.get_backtrace();
+    const std::string bt = backtrace.to_string();
+
+    instrumentr_call_stack_t call_stack =
+        instrumentr_state_get_call_stack(state);
 
     instrumentr_value_t value = instrumentr_environment_as_value(environment);
+
+    bool direct = true;
+
+    int time = instrumentr_state_get_time(state);
+
+    std::string expr =
+        instrumentr_sexp_to_string(instrumentr_value_get_sexp(expression), true)
+            .front();
 
     while (instrumentr_value_is_environment(value)) {
         instrumentr_environment_t envir =
@@ -2306,7 +2321,46 @@ void eval_call_entry(instrumentr_tracer_t tracer,
         Environment* env = env_table.insert(envir);
         env->push_eval();
 
+        int source_fun_id_1 = NA_INTEGER;
+        int source_call_id_1 = NA_INTEGER;
+        int source_fun_id_2 = NA_INTEGER;
+        int source_call_id_2 = NA_INTEGER;
+        int source_fun_id_3 = NA_INTEGER;
+        int source_call_id_3 = NA_INTEGER;
+        int source_fun_id_4 = NA_INTEGER;
+        int source_call_id_4 = NA_INTEGER;
+        int frame_index = 1;
+
+        get_four_caller_info(call_stack,
+                             source_fun_id_1,
+                             source_call_id_1,
+                             source_fun_id_2,
+                             source_call_id_2,
+                             source_fun_id_3,
+                             source_call_id_3,
+                             source_fun_id_4,
+                             source_call_id_4,
+                             frame_index);
+
+        Eval* eval = new Eval(time,
+                              env->get_id(),
+                              direct,
+                              expr,
+                              source_fun_id_1,
+                              source_call_id_1,
+                              source_fun_id_2,
+                              source_call_id_2,
+                              source_fun_id_3,
+                              source_call_id_3,
+                              source_fun_id_4,
+                              source_call_id_4,
+                              bt);
+
+        eval_table.insert(eval);
+
         value = instrumentr_environment_get_parent(envir);
+
+        direct = false;
     }
 }
 

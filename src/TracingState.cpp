@@ -35,6 +35,7 @@ void TracingState::finalize(instrumentr_state_t state) {
     SEXP r_call_ref = PROTECT(tracing_state.get_call_ref_tab().to_sexp());
     SEXP r_env_access = PROTECT(tracing_state.get_environment_access_table().to_sexp());
     SEXP r_env_cons = PROTECT(tracing_state.get_environment_constructor_table().to_sexp());
+    SEXP r_evals = PROTECT(tracing_state.get_eval_table().to_sexp());
 
     instrumentr_state_erase(state, "tracing_state", true);
     instrumentr_state_insert(state, "calls", r_calls, true);
@@ -47,8 +48,9 @@ void TracingState::finalize(instrumentr_state_t state) {
     instrumentr_state_insert(state, "call_ref", r_call_ref, true);
     instrumentr_state_insert(state, "env_access", r_env_access, true);
     instrumentr_state_insert(state, "env_cons", r_env_cons, true);
+    instrumentr_state_insert(state, "evals", r_evals, true);
 
-    UNPROTECT(10);
+    UNPROTECT(11);
 }
 
 TracingState& TracingState::lookup(instrumentr_state_t state) {

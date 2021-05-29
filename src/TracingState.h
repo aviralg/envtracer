@@ -13,6 +13,7 @@
 #include "Backtrace.h"
 #include "EnvironmentAccessTable.h"
 #include "EnvironmentConstructorTable.h"
+#include "EvalTable.h"
 #include <instrumentr/instrumentr.h>
 
 class TracingState {
@@ -104,8 +105,17 @@ class TracingState {
         return env_constructor_table_;
     }
 
-    const EnvironmentConstructorTable& get_environment_constructor_table() const {
+    const EnvironmentConstructorTable&
+    get_environment_constructor_table() const {
         return env_constructor_table_;
+    }
+
+    EvalTable& get_eval_table() {
+        return eval_table_;
+    }
+
+    const EvalTable& get_eval_table() const {
+        return eval_table_;
     }
 
     static void initialize(instrumentr_state_t state);
@@ -126,6 +136,7 @@ class TracingState {
     Backtrace backtrace_;
     EnvironmentAccessTable env_access_table_;
     EnvironmentConstructorTable env_constructor_table_;
+    EvalTable eval_table_;
 };
 
 #endif /* ENVTRACER_TRACING_STATE_H */
