@@ -1089,12 +1089,13 @@ void closure_call_entry_callback(instrumentr_tracer_t tracer,
 
     /* handle arguments */
 
-    ArgumentTable& argument_table = tracing_state.get_argument_table();
-
-    process_arguments(
-        argument_table, call, closure, call_data, function_data, call_env_data);
-
-    process_actuals(argument_table, call);
+    // NOTE: this table is not needed
+    //ArgumentTable& argument_table = tracing_state.get_argument_table();
+    //
+    //process_arguments(
+    //    argument_table, call, closure, call_data, function_data, call_env_data);
+    //
+    //process_actuals(argument_table, call);
 
     /* handle backtrace */
     Backtrace& backtrace = tracing_state.get_backtrace();
