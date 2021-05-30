@@ -76,8 +76,14 @@ class EnvironmentTable {
         SEXP r_evals = PROTECT(allocVector(INTSXP, size));
         SEXP r_package = PROTECT(allocVector(STRSXP, size));
         SEXP r_constructor = PROTECT(allocVector(STRSXP, size));
-        SEXP r_source_fun_id = PROTECT(allocVector(INTSXP, size));
-        SEXP r_source_call_id = PROTECT(allocVector(INTSXP, size));
+        SEXP r_source_fun_id_1 = PROTECT(allocVector(INTSXP, size));
+        SEXP r_source_call_id_1 = PROTECT(allocVector(INTSXP, size));
+        SEXP r_source_fun_id_2 = PROTECT(allocVector(INTSXP, size));
+        SEXP r_source_call_id_2 = PROTECT(allocVector(INTSXP, size));
+        SEXP r_source_fun_id_3 = PROTECT(allocVector(INTSXP, size));
+        SEXP r_source_call_id_3 = PROTECT(allocVector(INTSXP, size));
+        SEXP r_source_fun_id_4 = PROTECT(allocVector(INTSXP, size));
+        SEXP r_source_call_id_4 = PROTECT(allocVector(INTSXP, size));
         SEXP r_dispatch = PROTECT(allocVector(LGLSXP, size));
         SEXP r_event_seq = PROTECT(allocVector(STRSXP, size));
         SEXP r_backtrace = PROTECT(allocVector(STRSXP, size));
@@ -98,48 +104,46 @@ class EnvironmentTable {
                                  r_evals,
                                  r_package,
                                  r_constructor,
-                                 r_source_fun_id,
-                                 r_source_call_id,
+                                 r_source_fun_id_1,
+                                 r_source_call_id_1,
+                                 r_source_fun_id_2,
+                                 r_source_call_id_2,
+                                 r_source_fun_id_3,
+                                 r_source_call_id_3,
+                                 r_source_fun_id_4,
+                                 r_source_call_id_4,
                                  r_dispatch,
                                  r_event_seq,
                                  r_backtrace);
         }
 
-        std::vector<SEXP> columns({r_env_id,
-                                   r_hashed,
-                                   r_parent_env_id,
-                                   r_env_type,
-                                   r_env_name,
-                                   r_call_id,
-                                   r_classes,
-                                   r_evals,
-                                   r_package,
-                                   r_constructor,
-                                   r_source_fun_id,
-                                   r_source_call_id,
-                                   r_dispatch,
-                                   r_event_seq,
+        std::vector<SEXP> columns({r_env_id,          r_hashed,
+                                   r_parent_env_id,   r_env_type,
+                                   r_env_name,        r_call_id,
+                                   r_classes,         r_evals,
+                                   r_package,         r_constructor,
+                                   r_source_fun_id_1, r_source_call_id_1,
+                                   r_source_fun_id_2, r_source_call_id_2,
+                                   r_source_fun_id_3, r_source_call_id_3,
+                                   r_source_fun_id_4, r_source_call_id_4,
+                                   r_dispatch,        r_event_seq,
                                    r_backtrace});
 
-        std::vector<std::string> names({"env_id",
-                                        "hashed",
-                                        "parent_env_id",
-                                        "env_type",
-                                        "env_name",
-                                        "call_id",
-                                        "class",
-                                        "eval",
-                                        "package",
-                                        "constructor",
-                                        "source_fun_id",
-                                        "source_call_id",
-                                        "dispatch",
-                                        "event_seq",
+        std::vector<std::string> names({"env_id",          "hashed",
+                                        "parent_env_id",   "env_type",
+                                        "env_name",        "call_id",
+                                        "class",           "eval",
+                                        "package",         "constructor",
+                                        "source_fun_id_1", "source_call_id_1",
+                                        "source_fun_id_2", "source_call_id_2",
+                                        "source_fun_id_3", "source_call_id_3",
+                                        "source_fun_id_4", "source_call_id_4",
+                                        "dispatch",        "event_seq",
                                         "backtrace"});
 
         SEXP df = create_data_frame(names, columns);
 
-        UNPROTECT(15);
+        UNPROTECT(21);
 
         return df;
     }

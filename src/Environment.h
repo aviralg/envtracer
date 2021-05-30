@@ -17,8 +17,14 @@ class Environment {
         , eval_counter_(0)
         , package_(ENVTRACER_NA_STRING)
         , constructor_(ENVTRACER_NA_STRING)
-        , source_fun_id_(NA_INTEGER)
-        , source_call_id_(NA_INTEGER)
+        , source_fun_id_1_(NA_INTEGER)
+        , source_call_id_1_(NA_INTEGER)
+        , source_fun_id_2_(NA_INTEGER)
+        , source_call_id_2_(NA_INTEGER)
+        , source_fun_id_3_(NA_INTEGER)
+        , source_call_id_3_(NA_INTEGER)
+        , source_fun_id_4_(NA_INTEGER)
+        , source_call_id_4_(NA_INTEGER)
         , dispatch_(false)
         , backtrace_(ENVTRACER_NA_STRING)
         , event_seq_("|") {
@@ -87,11 +93,23 @@ class Environment {
     }
 
     void set_source(const std::string& constructor,
-                    int source_fun_id,
-                    int source_call_id) {
+                    int source_fun_id_1,
+                    int source_call_id_1,
+                    int source_fun_id_2,
+                    int source_call_id_2,
+                    int source_fun_id_3,
+                    int source_call_id_3,
+                    int source_fun_id_4,
+                    int source_call_id_4) {
         constructor_ = constructor;
-        source_fun_id_ = source_fun_id;
-        source_call_id_ = source_call_id;
+        source_fun_id_1_ = source_fun_id_1;
+        source_call_id_1_ = source_call_id_1;
+        source_fun_id_2_ = source_fun_id_2;
+        source_call_id_2_ = source_call_id_2;
+        source_fun_id_3_ = source_fun_id_3;
+        source_call_id_3_ = source_call_id_3;
+        source_fun_id_4_ = source_fun_id_4;
+        source_call_id_4_ = source_call_id_4;
     }
 
     void set_backtrace(const std::string& backtrace) {
@@ -150,8 +168,14 @@ class Environment {
                  SEXP r_evals,
                  SEXP r_package,
                  SEXP r_constructor,
-                 SEXP r_source_fun_id,
-                 SEXP r_source_call_id,
+                 SEXP r_source_fun_id_1,
+                 SEXP r_source_call_id_1,
+                 SEXP r_source_fun_id_2,
+                 SEXP r_source_call_id_2,
+                 SEXP r_source_fun_id_3,
+                 SEXP r_source_call_id_3,
+                 SEXP r_source_fun_id_4,
+                 SEXP r_source_call_id_4,
                  SEXP r_dispatch,
                  SEXP r_event_seq,
                  SEXP r_backtrace) {
@@ -165,8 +189,14 @@ class Environment {
         SET_INTEGER_ELT(r_evals, position, evals_);
         SET_STRING_ELT(r_package, position, make_char(package_));
         SET_STRING_ELT(r_constructor, position, make_char(constructor_));
-        SET_INTEGER_ELT(r_source_fun_id, position, source_fun_id_);
-        SET_INTEGER_ELT(r_source_call_id, position, source_call_id_);
+        SET_INTEGER_ELT(r_source_fun_id_1, position, source_fun_id_1_);
+        SET_INTEGER_ELT(r_source_call_id_1, position, source_call_id_1_);
+        SET_INTEGER_ELT(r_source_fun_id_2, position, source_fun_id_2_);
+        SET_INTEGER_ELT(r_source_call_id_2, position, source_call_id_2_);
+        SET_INTEGER_ELT(r_source_fun_id_3, position, source_fun_id_3_);
+        SET_INTEGER_ELT(r_source_call_id_3, position, source_call_id_3_);
+        SET_INTEGER_ELT(r_source_fun_id_4, position, source_fun_id_4_);
+        SET_INTEGER_ELT(r_source_call_id_4, position, source_call_id_4_);
         SET_LOGICAL_ELT(r_dispatch, position, dispatch_ ? 1 : 0);
         SET_STRING_ELT(r_event_seq, position, make_char(event_seq_));
         SET_STRING_ELT(r_backtrace, position, make_char(backtrace_));
@@ -184,8 +214,14 @@ class Environment {
     int eval_counter_;
     std::string package_;
     std::string constructor_;
-    int source_fun_id_;
-    int source_call_id_;
+    int source_fun_id_1_;
+    int source_call_id_1_;
+    int source_fun_id_2_;
+    int source_call_id_2_;
+    int source_fun_id_3_;
+    int source_call_id_3_;
+    int source_fun_id_4_;
+    int source_call_id_4_;
     bool dispatch_;
     std::string event_seq_;
     std::string backtrace_;

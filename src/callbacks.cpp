@@ -2247,21 +2247,39 @@ void gc_allocation_callback(instrumentr_tracer_t tracer,
 
     Environment* env = env_table.insert(environment);
 
-    int index = 0;
+    instrumentr_call_stack_t call_stack =
+        instrumentr_state_get_call_stack(state);
 
-    instrumentr_call_t call =
-        get_caller(instrumentr_state_get_call_stack(state), index);
+    int source_fun_id_1 = NA_INTEGER;
+    int source_call_id_1 = NA_INTEGER;
+    int source_fun_id_2 = NA_INTEGER;
+    int source_call_id_2 = NA_INTEGER;
+    int source_fun_id_3 = NA_INTEGER;
+    int source_call_id_3 = NA_INTEGER;
+    int source_fun_id_4 = NA_INTEGER;
+    int source_call_id_4 = NA_INTEGER;
+    int frame_index = 0;
 
-    if (call == nullptr) {
-        return;
-    }
-
-    instrumentr_value_t fun = instrumentr_call_get_function(call);
-    instrumentr_closure_t closure = instrumentr_value_as_closure(fun);
+    get_four_caller_info(call_stack,
+                         source_fun_id_1,
+                         source_call_id_1,
+                         source_fun_id_2,
+                         source_call_id_2,
+                         source_fun_id_3,
+                         source_call_id_3,
+                         source_fun_id_4,
+                         source_call_id_4,
+                         frame_index);
 
     env->set_source(ENVTRACER_NA_STRING,
-                    instrumentr_closure_get_id(closure),
-                    instrumentr_call_get_id(call));
+                    source_fun_id_1,
+                    source_call_id_1,
+                    source_fun_id_2,
+                    source_call_id_2,
+                    source_fun_id_3,
+                    source_call_id_3,
+                    source_fun_id_4,
+                    source_call_id_4);
 
     Backtrace& backtrace = tracing_state.get_backtrace();
 
