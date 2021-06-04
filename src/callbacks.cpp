@@ -2547,6 +2547,8 @@ void substitute_call_entry(instrumentr_tracer_t tracer,
     EnvironmentAccess* env_access =
         new EnvironmentAccess(time, depth, "substitute");
 
+    env_access->set_result_env("environment", env->get_id());
+
     env_access->set_source(source_fun_id_1,
                            source_call_id_1,
                            source_fun_id_2,
