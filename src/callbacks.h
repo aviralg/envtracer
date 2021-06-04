@@ -191,4 +191,11 @@ void eval_call_exit(instrumentr_tracer_t tracer,
                     instrumentr_environment_t environment,
                     instrumentr_value_t result);
 
+void substitute_call_entry(instrumentr_tracer_t tracer,
+                           instrumentr_callback_t callback,
+                           instrumentr_state_t state,
+                           instrumentr_application_t application,
+                           instrumentr_value_t expression,
+                           instrumentr_environment_t environment);
+
 #endif /* ENVTRACER_CALLBACKS_H  */

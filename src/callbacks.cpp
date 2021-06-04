@@ -2412,3 +2412,63 @@ void eval_call_exit(instrumentr_tracer_t tracer,
         value = instrumentr_environment_get_parent(envir);
     }
 }
+
+void substitute_call_entry(instrumentr_tracer_t tracer,
+                           instrumentr_callback_t callback,
+                           instrumentr_state_t state,
+                           instrumentr_application_t application,
+                           instrumentr_value_t expression,
+                           instrumentr_environment_t environment) {
+    TracingState& tracing_state = TracingState::lookup(state);
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+    EnvironmentAccessTable& env_access_table =
+        tracing_state.get_environment_access_table();
+
+    Backtrace& backtrace = tracing_state.get_backtrace();
+
+    int time = instrumentr_state_get_time(state);
+    int depth = NA_INTEGER;
+
+    instrumentr_call_stack_t call_stack =
+        instrumentr_state_get_call_stack(state);
+
+    int source_fun_id_1 = NA_INTEGER;
+    int source_call_id_1 = NA_INTEGER;
+    int source_fun_id_2 = NA_INTEGER;
+    int source_call_id_2 = NA_INTEGER;
+    int source_fun_id_3 = NA_INTEGER;
+    int source_call_id_3 = NA_INTEGER;
+    int source_fun_id_4 = NA_INTEGER;
+    int source_call_id_4 = NA_INTEGER;
+    int frame_index = 1;
+
+    get_four_caller_info(call_stack,
+                         source_fun_id_1,
+                         source_call_id_1,
+                         source_fun_id_2,
+                         source_call_id_2,
+                         source_fun_id_3,
+                         source_call_id_3,
+                         source_fun_id_4,
+                         source_call_id_4,
+                         frame_index);
+
+    Environment* env = env_table.insert(environment);
+    env->add_event("substitute");
+
+    EnvironmentAccess* env_access =
+        new EnvironmentAccess(time, depth, "substitute");
+
+    env_access->set_source(source_fun_id_1,
+                           source_call_id_1,
+                           source_fun_id_2,
+                           source_call_id_2,
+                           source_fun_id_3,
+                           source_call_id_3,
+                           source_fun_id_4,
+                           source_call_id_4);
+
+    env_access->set_backtrace(backtrace.to_string());
+
+    env_access_table.insert(env_access);
+}
