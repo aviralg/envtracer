@@ -2064,7 +2064,7 @@ void environment_ls(instrumentr_tracer_t tracer,
 
     process_reads_and_writes(state,
                              environment,
-                             "S",
+                             "ls",
                              varname,
                              value_type,
                              env_table,
