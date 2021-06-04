@@ -986,6 +986,94 @@ void builtin_call_exit_callback(instrumentr_tracer_t tracer,
     backtrace.pop();
 }
 
+void special_call_exit_callback(instrumentr_tracer_t tracer,
+                                instrumentr_callback_t callback,
+                                instrumentr_state_t state,
+                                instrumentr_application_t application,
+                                instrumentr_special_t special,
+                                instrumentr_call_t call) {
+    std::string name = instrumentr_special_get_name(special);
+
+    if (name != "~") {
+        return;
+    }
+
+    if (!instrumentr_call_has_result(call)) {
+        return;
+    }
+
+    instrumentr_value_t formula = instrumentr_call_get_result(call);
+
+    instrumentr_value_t env_val =
+        instrumentr_value_get_attribute(formula, ".Environment");
+
+    if (!instrumentr_value_is_environment(env_val)) {
+        return;
+    }
+
+    int time = instrumentr_state_get_time(state);
+
+    int depth = NA_INTEGER;
+
+    instrumentr_environment_t environment =
+        instrumentr_value_as_environment(env_val);
+
+    TracingState& tracing_state = TracingState::lookup(state);
+
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+
+    EnvironmentAccessTable& env_access_table =
+        tracing_state.get_environment_access_table();
+
+    instrumentr_call_stack_t call_stack =
+        instrumentr_state_get_call_stack(state);
+
+    Backtrace& backtrace = tracing_state.get_backtrace();
+
+    int source_fun_id_1 = NA_INTEGER;
+    int source_call_id_1 = NA_INTEGER;
+    int source_fun_id_2 = NA_INTEGER;
+    int source_call_id_2 = NA_INTEGER;
+    int source_fun_id_3 = NA_INTEGER;
+    int source_call_id_3 = NA_INTEGER;
+    int source_fun_id_4 = NA_INTEGER;
+    int source_call_id_4 = NA_INTEGER;
+    int frame_index = 1;
+
+    get_four_caller_info(call_stack,
+                         source_fun_id_1,
+                         source_call_id_1,
+                         source_fun_id_2,
+                         source_call_id_2,
+                         source_fun_id_3,
+                         source_call_id_3,
+                         source_fun_id_4,
+                         source_call_id_4,
+                         frame_index);
+
+    Environment* env = env_table.insert(environment);
+    env->add_event("~");
+
+    EnvironmentAccess* env_access = new EnvironmentAccess(time, depth, "~");
+
+    env_access->set_result_env("environment", env->get_id());
+
+    env_access->set_source(source_fun_id_1,
+                           source_call_id_1,
+                           source_fun_id_2,
+                           source_call_id_2,
+                           source_fun_id_3,
+                           source_call_id_3,
+                           source_fun_id_4,
+                           source_call_id_4);
+
+    env_access->set_backtrace(backtrace.to_string());
+
+    env_access_table.insert(env_access);
+
+    /* handle backtrace */
+}
+
 void process_arguments(ArgumentTable& argument_table,
                        instrumentr_call_t call,
                        instrumentr_closure_t closure,

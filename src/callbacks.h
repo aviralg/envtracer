@@ -51,6 +51,13 @@ void builtin_call_exit_callback(instrumentr_tracer_t tracer,
                                 instrumentr_builtin_t builtin,
                                 instrumentr_call_t call);
 
+void special_call_exit_callback(instrumentr_tracer_t tracer,
+                                instrumentr_callback_t callback,
+                                instrumentr_state_t state,
+                                instrumentr_application_t application,
+                                instrumentr_special_t special,
+                                instrumentr_call_t call);
+
 void promise_force_entry_callback(instrumentr_tracer_t tracer,
                                   instrumentr_callback_t callback,
                                   instrumentr_state_t state,
