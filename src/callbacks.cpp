@@ -816,7 +816,15 @@ void handle_builtin_environment_access(instrumentr_state_t state,
         if (environment != nullptr) {
             Environment* env = env_table.insert(environment);
 
-            env->add_event(fun_name + "_0");
+            std::string event_name = fun_name + "_0";
+
+            int model_depth = get_environment_depth(call_stack, result_env_id);
+
+            if (model_depth != NA_INTEGER) {
+                event_name.append("^").append(std::to_string(model_depth));
+            }
+
+            env->add_event(event_name);
         }
 
         env_access->set_arg_env_1(arg_env_type_1, arg_env_id_1);

@@ -45,6 +45,10 @@ class Call {
         return force_order_.size();
     }
 
+    int get_fun_id() const {
+        return fun_id_;
+    }
+
     void to_sexp(int position,
                  SEXP r_call_id,
                  SEXP r_fun_id,
