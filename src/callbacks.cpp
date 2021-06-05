@@ -460,9 +460,11 @@ void handle_builtin_environment_access(instrumentr_state_t state,
     instrumentr_value_t arg_val = instrumentr_call_get_arguments(call);
     SEXP r_arguments = instrumentr_value_get_sexp(arg_val);
 
+    instrumentr_environment_t arg_environment_1 = nullptr;
     std::string arg_env_type_1 = ENVTRACER_NA_STRING;
     int arg_env_id_1 = NA_INTEGER;
 
+    instrumentr_environment_t arg_environment_2 = nullptr;
     std::string arg_env_type_2 = ENVTRACER_NA_STRING;
     int arg_env_id_2 = NA_INTEGER;
 
@@ -620,6 +622,7 @@ void handle_builtin_environment_access(instrumentr_state_t state,
             get_sexp_type(instrumentr_value_get_sexp(arg_env_val_1));
 
         if (instrumentr_value_is_environment(arg_env_val_1)) {
+            arg_environment_1 = instrumentr_value_as_environment(arg_env_val_1);
             arg_env_id_1 = instrumentr_value_get_id(arg_env_val_1);
         }
     }
@@ -637,6 +640,7 @@ void handle_builtin_environment_access(instrumentr_state_t state,
             get_sexp_type(instrumentr_value_get_sexp(arg_env_val_1));
 
         if (instrumentr_value_is_environment(arg_env_val_1)) {
+            arg_environment_1 = instrumentr_value_as_environment(arg_env_val_1);
             arg_env_id_1 = instrumentr_value_get_id(arg_env_val_1);
         }
 
@@ -668,6 +672,7 @@ void handle_builtin_environment_access(instrumentr_state_t state,
             get_sexp_type(instrumentr_value_get_sexp(arg_env_val_1));
 
         if (instrumentr_value_is_environment(arg_env_val_1)) {
+            arg_environment_1 = instrumentr_value_as_environment(arg_env_val_1);
             arg_env_id_1 = instrumentr_value_get_id(arg_env_val_1);
         }
     }
@@ -685,6 +690,7 @@ void handle_builtin_environment_access(instrumentr_state_t state,
             get_sexp_type(instrumentr_value_get_sexp(arg_env_val_1));
 
         if (instrumentr_value_is_environment(arg_env_val_1)) {
+            arg_environment_1 = instrumentr_value_as_environment(arg_env_val_1);
             arg_env_id_1 = instrumentr_value_get_id(arg_env_val_1);
         }
 
@@ -711,6 +717,7 @@ void handle_builtin_environment_access(instrumentr_state_t state,
         }
 
         if (instrumentr_value_is_environment(arg_env_val_1)) {
+            arg_environment_1 = instrumentr_value_as_environment(arg_env_val_1);
             arg_env_id_1 = instrumentr_value_get_id(arg_env_val_1);
         }
 
@@ -726,6 +733,7 @@ void handle_builtin_environment_access(instrumentr_state_t state,
         }
 
         if (instrumentr_value_is_environment(arg_env_val_2)) {
+            arg_environment_2 = instrumentr_value_as_environment(arg_env_val_2);
             arg_env_id_2 = instrumentr_value_get_id(arg_env_val_2);
         }
     }
@@ -748,6 +756,7 @@ void handle_builtin_environment_access(instrumentr_state_t state,
         }
 
         if (instrumentr_value_is_environment(arg_env_val_1)) {
+            arg_environment_1 = instrumentr_value_as_environment(arg_env_val_1);
             arg_env_id_1 = instrumentr_value_get_id(arg_env_val_1);
         }
     }
@@ -767,9 +776,27 @@ void handle_builtin_environment_access(instrumentr_state_t state,
 
         env_access->set_result_env(result_env_type, result_env_id);
 
+        if (environment != nullptr) {
+            Environment* env = env_table.insert(environment);
+
+            env->add_event(fun_name + "_0");
+        }
+
         env_access->set_arg_env_1(arg_env_type_1, arg_env_id_1);
 
+        if (arg_environment_1 != nullptr) {
+            Environment* env = env_table.insert(arg_environment_1);
+
+            env->add_event(fun_name + "_1");
+        }
+
         env_access->set_arg_env_2(arg_env_type_2, arg_env_id_2);
+
+        if (arg_environment_2 != nullptr) {
+            Environment* env = env_table.insert(arg_environment_2);
+
+            env->add_event(fun_name + "_2");
+        }
 
         env_access->set_env_name(env_name);
 
@@ -821,12 +848,6 @@ void handle_builtin_environment_access(instrumentr_state_t state,
         env_access->set_backtrace(backtrace.to_string());
 
         env_access_table.insert(env_access);
-
-        if (environment != nullptr) {
-            Environment* env = env_table.insert(environment);
-
-            env->add_event(fun_name);
-        }
     }
 }
 
