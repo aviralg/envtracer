@@ -69,6 +69,11 @@ SEXP r_envtracer_tracer_create() {
     //     INSTRUMENTR_EVENT_PROMISE_FORCE_EXIT);
     // instrumentr_tracer_set_callback(tracer, callback);
     // instrumentr_object_release(callback);
+    callback = instrumentr_callback_create_from_c_function(
+        (void*) (promise_force_exit_callback),
+        INSTRUMENTR_EVENT_PROMISE_FORCE_EXIT);
+    instrumentr_tracer_set_callback(tracer, callback);
+    instrumentr_object_release(callback);
     //
     // callback = instrumentr_callback_create_from_c_function(
     //     (void*) (promise_value_lookup_callback),

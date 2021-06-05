@@ -1821,32 +1821,82 @@ void promise_force_exit_callback(instrumentr_tracer_t tracer,
         return;
     }
 
-    TracingState& tracing_state = TracingState::lookup(state);
-    CallTable& call_table = tracing_state.get_call_table();
-    ArgumentTable& argument_table = tracing_state.get_argument_table();
+    instrumentr_environment_t environment = nullptr;
 
-    int promise_id = instrumentr_promise_get_id(promise);
-    const std::vector<Argument*>& arguments = argument_table.lookup(promise_id);
-
-    for (Argument* argument: arguments) {
-        int call_id = argument->get_call_id();
-
-        Call* call_data = call_table.lookup(call_id);
-
-        /* NOTE: first check escaped */
-        if (call_data->has_exited()) {
-            argument->escaped();
+    if (instrumentr_promise_is_forced(promise)) {
+        instrumentr_value_t value = instrumentr_promise_get_value(promise);
+        if (instrumentr_value_is_environment(value)) {
+            environment = instrumentr_value_as_environment(value);
         }
-
-        std::string value_type = ENVTRACER_NA_STRING;
-        if (instrumentr_promise_is_forced(promise)) {
-            instrumentr_value_t value = instrumentr_promise_get_value(promise);
-            value_type = instrumentr_value_type_get_name(
-                instrumentr_value_get_type(value));
-        }
-
-        argument->set_value_type(value_type);
     }
+
+    if (environment == nullptr) {
+        return;
+    }
+
+    instrumentr_call_stack_t call_stack =
+        instrumentr_state_get_call_stack(state);
+
+    TracingState& tracing_state = TracingState::lookup(state);
+
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+
+    CallTable& call_table = tracing_state.get_call_table();
+
+    EnvironmentAccessTable& env_access_table =
+        tracing_state.get_environment_access_table();
+
+    Backtrace& backtrace = tracing_state.get_backtrace();
+
+    Environment* env = env_table.insert(environment);
+
+    env->add_event("Argument");
+
+    instrumentr_call_t call = instrumentr_promise_get_call(promise);
+
+    Call* call_data = call_table.lookup(instrumentr_call_get_id(call));
+
+    int time = instrumentr_state_get_time(state);
+
+    EnvironmentAccess* env_access =
+        new EnvironmentAccess(time, NA_INTEGER, "Argument");
+
+    /* NOTE: we are setting call id for a reason */
+    env_access->set_fun("closure", call_data->get_fun_id());
+
+    int source_fun_id_1 = NA_INTEGER;
+    int source_call_id_1 = NA_INTEGER;
+    int source_fun_id_2 = NA_INTEGER;
+    int source_call_id_2 = NA_INTEGER;
+    int source_fun_id_3 = NA_INTEGER;
+    int source_call_id_3 = NA_INTEGER;
+    int source_fun_id_4 = NA_INTEGER;
+    int source_call_id_4 = NA_INTEGER;
+    int frame_index = 1;
+
+    get_four_caller_info(call_stack,
+                         source_fun_id_1,
+                         source_call_id_1,
+                         source_fun_id_2,
+                         source_call_id_2,
+                         source_fun_id_3,
+                         source_call_id_3,
+                         source_fun_id_4,
+                         source_call_id_4,
+                         frame_index);
+
+    env_access->set_source(source_fun_id_1,
+                           source_call_id_1,
+                           source_fun_id_2,
+                           source_call_id_2,
+                           source_fun_id_3,
+                           source_call_id_3,
+                           source_fun_id_4,
+                           source_call_id_4);
+
+    env_access->set_backtrace(backtrace.to_string());
+
+    env_access_table.insert(env_access);
 }
 
 void tracing_entry_callback(instrumentr_tracer_t tracer,
