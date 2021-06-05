@@ -574,6 +574,11 @@ void handle_builtin_environment_access(instrumentr_state_t state,
                     seq_env_id.append(
                         std::to_string(instrumentr_value_get_id(elt)));
                     seq_env_id.append("|");
+
+                    Environment* env =
+                        env_table.insert(instrumentr_value_as_environment(elt));
+
+                    env->add_event(fun_name + "_0");
                 }
             }
 
