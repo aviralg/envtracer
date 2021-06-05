@@ -1206,7 +1206,7 @@ void closure_call_entry_callback(instrumentr_tracer_t tracer,
     Environment* call_env_data =
         env_table.insert(instrumentr_call_get_environment(call));
 
-    call_env_data -> add_event("entry");
+    call_env_data->add_event("CallEntry");
 
     /* handle closure */
 
@@ -1403,7 +1403,7 @@ void closure_call_exit_callback(instrumentr_tracer_t tracer,
     Environment* call_env_data =
         env_table.insert(instrumentr_call_get_environment(call));
 
-    call_env_data -> add_event("exit");
+    call_env_data->add_event("CallExit");
 
     int call_id = instrumentr_call_get_id(call);
 
@@ -2592,6 +2592,12 @@ void eval_call_entry(instrumentr_tracer_t tracer,
         Environment* env = env_table.insert(envir);
         env->push_eval();
 
+        if (direct) {
+            env->add_event("EvalEntryDirect");
+        } else {
+            env->add_event("EvalEntryIndirect");
+        }
+
         int source_fun_id_1 = NA_INTEGER;
         int source_call_id_1 = NA_INTEGER;
         int source_fun_id_2 = NA_INTEGER;
@@ -2647,6 +2653,8 @@ void eval_call_exit(instrumentr_tracer_t tracer,
 
     instrumentr_value_t value = instrumentr_environment_as_value(environment);
 
+    bool direct = true;
+
     while (instrumentr_value_is_environment(value)) {
         instrumentr_environment_t envir =
             instrumentr_value_as_environment(value);
@@ -2659,9 +2667,18 @@ void eval_call_exit(instrumentr_tracer_t tracer,
         }
 
         Environment* env = env_table.insert(envir);
+
         env->pop_eval();
 
+        if (direct) {
+            env->add_event("EvalExitDirect");
+        } else {
+            env->add_event("EvalExitIndirect");
+        }
+
         value = instrumentr_environment_get_parent(envir);
+
+        direct = false;
     }
 }
 
