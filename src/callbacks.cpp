@@ -894,7 +894,8 @@ void handle_builtin_environment_construction(
     instrumentr_call_t call,
     instrumentr_builtin_t builtin,
     Backtrace& backtrace,
-    EnvironmentConstructorTable& env_constructor_table) {
+    EnvironmentConstructorTable& env_constructor_table,
+    EnvironmentTable& env_table) {
     std::string fun_name =
         charptr_to_string(instrumentr_builtin_get_name(builtin));
 
@@ -1324,10 +1325,6 @@ void handle_closure_environment_access(instrumentr_state_t state,
     std::string fun_name =
         charptr_to_string(instrumentr_closure_get_name(closure));
 
-    if (fun_name != "getNamespace") {
-        return;
-    }
-
     int time = instrumentr_state_get_time(state);
 
     int result_env_id = NA_INTEGER;
@@ -1356,17 +1353,19 @@ void handle_closure_environment_access(instrumentr_state_t state,
 
     std::string name_type = ENVTRACER_NA_STRING;
 
-    instrumentr_value_t name_val = lookup_environment(
-        state, instrumentr_call_get_environment(call), "name", true);
+    if (fun_name == "getNamespace") {
+        instrumentr_value_t name_val = lookup_environment(
+            state, instrumentr_call_get_environment(call), "name", true);
 
-    if (name_val != nullptr) {
-        SEXP r_name_val = instrumentr_value_get_sexp(name_val);
-        name_type = get_sexp_type(r_name_val);
+        if (name_val != nullptr) {
+            SEXP r_name_val = instrumentr_value_get_sexp(name_val);
+            name_type = get_sexp_type(r_name_val);
 
-        if (instrumentr_value_is_character(name_val)) {
-            name = CHAR(STRING_ELT(r_name_val, 0));
-        } else if (instrumentr_value_is_symbol(name_val)) {
-            name = CHAR(PRINTNAME(r_name_val));
+            if (instrumentr_value_is_character(name_val)) {
+                name = CHAR(STRING_ELT(r_name_val, 0));
+            } else if (instrumentr_value_is_symbol(name_val)) {
+                name = CHAR(PRINTNAME(r_name_val));
+            }
         }
     }
 
@@ -1392,14 +1391,21 @@ void handle_closure_environment_access(instrumentr_state_t state,
                          frame_index);
 
     Environment* env = env_table.insert(environment);
-    env->add_event("getNamespace_0");
 
-    EnvironmentAccess* env_access =
-        new EnvironmentAccess(time, NA_INTEGER, "getNamespace_0");
+    env->add_event(fun_name == "getNamespace" ? fun_name : "Return");
+
+    EnvironmentAccess* env_access = new EnvironmentAccess(
+        time, NA_INTEGER, fun_name == "getNamespace" ? fun_name : "Return");
 
     env_access->set_result_env("environment", env->get_id());
 
-    env_access->set_x(name_type, NA_INTEGER, name);
+    if (fun_name == "getNamespace") {
+        env_access->set_x(name_type, NA_INTEGER, name);
+    }
+
+    else {
+        env_access->set_fun("closure", instrumentr_closure_get_id(closure));
+    }
 
     env_access->set_source(source_fun_id_1,
                            source_call_id_1,
