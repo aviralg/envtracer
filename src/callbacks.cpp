@@ -51,29 +51,16 @@ int extract_integer(instrumentr_value_t value, int index = 0) {
     return NA_INTEGER;
 }
 
-std::pair<instrumentr_value_t, std::string>
-lookup_environment(instrumentr_state_t state,
-                   instrumentr_environment_t environment,
-                   const char* name,
-                   bool unwrap_promise = true) {
+instrumentr_value_t lookup_environment(instrumentr_state_t state,
+                                       instrumentr_environment_t environment,
+                                       const char* name,
+                                       bool unwrap_promise = true) {
     instrumentr_symbol_t sym = instrumentr_state_get_symbol(state, name);
 
     instrumentr_value_t val = instrumentr_environment_lookup(environment, sym);
 
-    std::string expr = ENVTRACER_NA_STRING;
-
     while (instrumentr_value_is_promise(val)) {
         instrumentr_promise_t val_prom = instrumentr_value_as_promise(val);
-
-        if (expr == ENVTRACER_NA_STRING) {
-            SEXP r_expr = instrumentr_value_get_sexp(
-                instrumentr_promise_get_expression(val_prom));
-
-            std::vector<std::string> exprs =
-                instrumentr_sexp_to_string(r_expr, true);
-
-            expr = exprs.front();
-        }
 
         if (!instrumentr_promise_is_forced(val_prom)) {
             val = NULL;
@@ -83,7 +70,7 @@ lookup_environment(instrumentr_state_t state,
         val = instrumentr_promise_get_value(val_prom);
     }
 
-    return make_pair(val, expr);
+    return val;
 }
 
 void analyze_package_environment(instrumentr_state_t state,
@@ -1239,6 +1226,107 @@ void closure_call_entry_callback(instrumentr_tracer_t tracer,
 //    else if (instrumentr_value_is_environment(result))
 //}
 
+void handle_closure_environment_access(instrumentr_state_t state,
+                                       instrumentr_call_stack_t call_stack,
+                                       instrumentr_call_t call,
+                                       instrumentr_closure_t closure,
+                                       Backtrace& backtrace,
+                                       EnvironmentAccessTable& env_access_table,
+                                       EnvironmentTable& env_table) {
+    std::string fun_name =
+        charptr_to_string(instrumentr_closure_get_name(closure));
+
+    if (fun_name != "getNamespace") {
+        return;
+    }
+
+    int time = instrumentr_state_get_time(state);
+
+    int result_env_id = NA_INTEGER;
+
+    std::string result_env_type = ENVTRACER_NA_STRING;
+
+    instrumentr_value_t result = nullptr;
+
+    instrumentr_environment_t environment = nullptr;
+
+    if (instrumentr_call_has_result(call)) {
+        result = instrumentr_call_get_result(call);
+        result_env_type = get_sexp_type(instrumentr_value_get_sexp(result));
+
+        if (instrumentr_value_is_environment(result)) {
+            environment = instrumentr_value_as_environment(result);
+            result_env_id = instrumentr_value_get_id(result);
+        }
+    }
+
+    if (result_env_id == NA_INTEGER) {
+        return;
+    }
+
+    std::string name = ENVTRACER_NA_STRING;
+
+    std::string name_type = ENVTRACER_NA_STRING;
+
+    instrumentr_value_t name_val = lookup_environment(
+        state, instrumentr_call_get_environment(call), "name", true);
+
+    if (name_val != nullptr) {
+        SEXP r_name_val = instrumentr_value_get_sexp(name_val);
+        name_type = get_sexp_type(r_name_val);
+
+        if (instrumentr_value_is_character(name_val)) {
+            name = CHAR(STRING_ELT(r_name_val, 0));
+        } else if (instrumentr_value_is_symbol(name_val)) {
+            name = CHAR(PRINTNAME(r_name_val));
+        }
+    }
+
+    int source_fun_id_1 = NA_INTEGER;
+    int source_call_id_1 = NA_INTEGER;
+    int source_fun_id_2 = NA_INTEGER;
+    int source_call_id_2 = NA_INTEGER;
+    int source_fun_id_3 = NA_INTEGER;
+    int source_call_id_3 = NA_INTEGER;
+    int source_fun_id_4 = NA_INTEGER;
+    int source_call_id_4 = NA_INTEGER;
+    int frame_index = 1;
+
+    get_four_caller_info(call_stack,
+                         source_fun_id_1,
+                         source_call_id_1,
+                         source_fun_id_2,
+                         source_call_id_2,
+                         source_fun_id_3,
+                         source_call_id_3,
+                         source_fun_id_4,
+                         source_call_id_4,
+                         frame_index);
+
+    Environment* env = env_table.insert(environment);
+    env->add_event("getNamespace_0");
+
+    EnvironmentAccess* env_access =
+        new EnvironmentAccess(time, NA_INTEGER, "getNamespace_0");
+
+    env_access->set_result_env("environment", env->get_id());
+
+    env_access->set_x(name_type, NA_INTEGER, name);
+
+    env_access->set_source(source_fun_id_1,
+                           source_call_id_1,
+                           source_fun_id_2,
+                           source_call_id_2,
+                           source_fun_id_3,
+                           source_call_id_3,
+                           source_fun_id_4,
+                           source_call_id_4);
+
+    env_access->set_backtrace(backtrace.to_string());
+
+    env_access_table.insert(env_access);
+}
+
 void closure_call_exit_callback(instrumentr_tracer_t tracer,
                                 instrumentr_callback_t callback,
                                 instrumentr_state_t state,
@@ -1263,10 +1351,13 @@ void closure_call_exit_callback(instrumentr_tracer_t tracer,
 
     bool has_result = instrumentr_call_has_result(call);
 
+    instrumentr_value_t result = nullptr;
+
     std::string result_type = ENVTRACER_NA_STRING;
+
     if (has_result) {
-        instrumentr_value_t value = instrumentr_call_get_result(call);
-        instrumentr_value_type_t val_type = instrumentr_value_get_type(value);
+        result = instrumentr_call_get_result(call);
+        instrumentr_value_type_t val_type = instrumentr_value_get_type(result);
         result_type = instrumentr_value_type_get_name(val_type);
     }
 
@@ -1291,8 +1382,14 @@ void closure_call_exit_callback(instrumentr_tracer_t tracer,
     if (closure_name == "library" || closure_name == "loadNamespace") {
         env_access_table.pop_library();
     }
-    //
-    // handle_call_result(closure, call, env_table);
+
+    handle_closure_environment_access(state,
+                                      call_stack,
+                                      call,
+                                      closure,
+                                      backtrace,
+                                      env_access_table,
+                                      env_table);
 }
 
 void compute_meta_depth(instrumentr_state_t state,
