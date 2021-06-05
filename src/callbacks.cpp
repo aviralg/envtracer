@@ -1161,6 +1161,8 @@ void closure_call_entry_callback(instrumentr_tracer_t tracer,
     Environment* call_env_data =
         env_table.insert(instrumentr_call_get_environment(call));
 
+    call_env_data -> add_event("entry");
+
     /* handle closure */
 
     FunctionTable& function_table = tracing_state.get_function_table();
@@ -1249,6 +1251,13 @@ void closure_call_exit_callback(instrumentr_tracer_t tracer,
 
     /* handle calls */
     CallTable& call_table = tracing_state.get_call_table();
+
+    EnvironmentTable& env_table = tracing_state.get_environment_table();
+
+    Environment* call_env_data =
+        env_table.insert(instrumentr_call_get_environment(call));
+
+    call_env_data -> add_event("exit");
 
     int call_id = instrumentr_call_get_id(call);
 
