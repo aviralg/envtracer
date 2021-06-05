@@ -1940,7 +1940,9 @@ void get_call_info(instrumentr_call_stack_t call_stack,
                    bool special,
                    bool closure,
                    std::string& fun_name,
+                   std::string& pack_name,
                    int& call_id) {
+    pack_name = ENVTRACER_NA_STRING;
     fun_name = ENVTRACER_NA_STRING;
     call_id = NA_INTEGER;
 
@@ -1962,16 +1964,22 @@ void get_call_info(instrumentr_call_stack_t call_stack,
     if (builtin && instrumentr_value_is_builtin(function)) {
         instrumentr_builtin_t builtin = instrumentr_value_as_builtin(function);
         fun_name = charptr_to_string(instrumentr_builtin_get_name(builtin));
+        pack_name = "base";
     }
 
     else if (special && instrumentr_value_is_special(function)) {
         instrumentr_special_t special = instrumentr_value_as_special(function);
         fun_name = charptr_to_string(instrumentr_special_get_name(special));
+        pack_name = "base";
     }
 
     else if (closure && instrumentr_value_is_closure(function)) {
         instrumentr_closure_t closure = instrumentr_value_as_closure(function);
         fun_name = charptr_to_string(instrumentr_closure_get_name(closure));
+        instrumentr_environment_t environment =
+            instrumentr_closure_get_environment(closure);
+        pack_name =
+            charptr_to_string(instrumentr_environment_get_name(environment));
     }
 
     if (fun_name != ENVTRACER_NA_STRING) {
@@ -2105,23 +2113,32 @@ void process_reads_and_writes(instrumentr_state_t state,
     bool record = false;
 
     std::string fun_name = ENVTRACER_NA_STRING;
+    std::string pack_name = ENVTRACER_NA_STRING;
     int call_id = NA_INTEGER;
     int frame_index = event == "S" ? 7 : 3;
 
-    get_call_info(
-        call_stack, frame_index, false, false, true, fun_name, call_id);
+    get_call_info(call_stack,
+                  frame_index,
+                  false,
+                  false,
+                  true,
+                  fun_name,
+                  pack_name,
+                  call_id);
 
-    if ((event == "L" &&
-         (fun_name == "get" || fun_name == "get0" || fun_name == "mget")) ||
-        (event == "A" && (fun_name == "assign")) ||
-        (event == "D" && (fun_name == "assign")) ||
-        (event == "E" && (fun_name == "exists")) ||
-        (event == "R" && (fun_name == "remove" || fun_name == "rm")) ||
-        (event == "S" && (fun_name == "ls" || fun_name == "objects"))) {
+    if ((pack_name == "base") &&
+        ((event == "L" &&
+          (fun_name == "get" || fun_name == "get0" || fun_name == "mget")) ||
+         (event == "A" && (fun_name == "assign")) ||
+         (event == "D" && (fun_name == "assign")) ||
+         (event == "E" && (fun_name == "exists")) ||
+         (event == "R" && (fun_name == "remove" || fun_name == "rm")) ||
+         (event == "S" && (fun_name == "ls" || fun_name == "objects")))) {
         record = true;
 
         /* get0 is called by dynGet */
         if (fun_name == "get0") {
+            std::string parent_pack_name("");
             std::string parent_fun_name("");
             int parent_call_id = NA_INTEGER;
             get_call_info(call_stack,
@@ -2130,6 +2147,7 @@ void process_reads_and_writes(instrumentr_state_t state,
                           false,
                           true,
                           parent_fun_name,
+                          parent_pack_name,
                           parent_call_id);
 
             if (parent_fun_name == "dynGet") {
