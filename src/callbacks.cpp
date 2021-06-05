@@ -505,6 +505,22 @@ void handle_builtin_environment_access(instrumentr_state_t state,
         }
     }
 
+    else if (fun_name == "list2env") {
+        instrumentr_pairlist_t arguments =
+            instrumentr_value_as_pairlist(arg_val);
+
+        instrumentr_value_t arg_env_val_1 =
+            instrumentr_pairlist_get_element(arguments, 1);
+
+        if (instrumentr_value_is_environment(arg_env_val_1)) {
+            record = true;
+            arg_environment_1 = instrumentr_value_as_environment(arg_env_val_1);
+            arg_env_id_1 = instrumentr_value_get_id(arg_env_val_1);
+            arg_env_type_1 =
+                get_sexp_type(instrumentr_value_get_sexp(arg_env_val_1));
+        }
+    }
+
     else if (fun_name == "as.environment" || fun_name == "pos.to.env") {
         record = true;
 
