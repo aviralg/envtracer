@@ -2472,6 +2472,8 @@ void attribute_set_callback(instrumentr_tracer_t tracer,
         return;
     }
 
+    env->add_event("@");
+
     instrumentr_character_t classes = instrumentr_value_as_character(value);
 
     for (int i = 0; i < instrumentr_character_get_size(classes); ++i) {
