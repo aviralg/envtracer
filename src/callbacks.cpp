@@ -946,10 +946,31 @@ void handle_builtin_environment_construction(
         instrumentr_pairlist_get_element(arguments, 1);
     int parent_env_id = NA_INTEGER;
     int parent_env_depth = NA_INTEGER;
+    instrumentr_environment_t parent_env = nullptr;
+    std::string parent_type = ENVTRACER_NA_STRING;
 
     if (parent_val != NULL && instrumentr_value_is_environment(parent_val)) {
+        parent_env = instrumentr_value_as_environment(parent_val);
         parent_env_id = instrumentr_value_get_id(parent_val);
         parent_env_depth = get_environment_depth(call_stack, parent_env_id, 0);
+
+        Environment* env = env_table.insert(parent_env);
+        env->add_event("new.env_1");
+
+        SEXP parent_env_sexp = instrumentr_environment_get_sexp(parent_env);
+
+        if (parent_env_sexp == R_GlobalEnv) {
+            parent_type = "global";
+        } else if (parent_env_sexp == R_EmptyEnv) {
+            parent_type = "empty";
+        } else if (parent_env_sexp == R_BaseEnv) {
+            parent_type = "base";
+        } else if (parent_env_sexp == R_BaseNamespace) {
+            parent_type = "base";
+        } else {
+            parent_type =
+                charptr_to_string(instrumentr_environment_get_name(parent_env));
+        }
     }
 
     instrumentr_value_t size_val =
@@ -973,9 +994,13 @@ void handle_builtin_environment_construction(
                                    parent_env_depth,
                                    size,
                                    frame_count,
+                                   parent_type,
                                    backtrace.to_string());
 
     env_constructor_table.insert(cons);
+
+    Environment* env = env_table.insert(result_env);
+    env->add_event("new.env_0");
 }
 
 void builtin_call_entry_callback(instrumentr_tracer_t tracer,
@@ -1025,8 +1050,13 @@ void builtin_call_exit_callback(instrumentr_tracer_t tracer,
                                       env_access_table,
                                       env_table);
 
-    handle_builtin_environment_construction(
-        state, call_stack, call, builtin, backtrace, env_constructor_table);
+    handle_builtin_environment_construction(state,
+                                            call_stack,
+                                            call,
+                                            builtin,
+                                            backtrace,
+                                            env_constructor_table,
+                                            env_table);
 
     backtrace.pop();
 }

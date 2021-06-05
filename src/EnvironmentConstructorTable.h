@@ -42,6 +42,7 @@ class EnvironmentConstructorTable {
         SEXP r_parent_env_depth = PROTECT(allocVector(INTSXP, size));
         SEXP r_size = PROTECT(allocVector(INTSXP, size));
         SEXP r_frame_count = PROTECT(allocVector(INTSXP, size));
+        SEXP r_parent_type = PROTECT(allocVector(STRSXP, size));
         SEXP r_backtrace = PROTECT(allocVector(STRSXP, size));
 
         for (int index = 0; index < table_.size(); ++index) {
@@ -62,6 +63,7 @@ class EnvironmentConstructorTable {
                                      r_parent_env_depth,
                                      r_size,
                                      r_frame_count,
+                                     r_parent_type,
                                      r_backtrace);
         }
 
@@ -79,6 +81,7 @@ class EnvironmentConstructorTable {
                                    r_parent_env_depth,
                                    r_size,
                                    r_frame_count,
+                                   r_parent_type,
                                    r_backtrace});
 
         std::vector<std::string> names({"env_id",
@@ -95,11 +98,12 @@ class EnvironmentConstructorTable {
                                         "parent_env_depth",
                                         "size",
                                         "frame_count",
+                                        "parent_type",
                                         "backtrace"});
 
         SEXP df = create_data_frame(names, columns);
 
-        UNPROTECT(15);
+        UNPROTECT(16);
 
         return df;
     }
