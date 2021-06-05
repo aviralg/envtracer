@@ -821,7 +821,8 @@ void handle_builtin_environment_access(instrumentr_state_t state,
             int model_depth = get_environment_depth(call_stack, result_env_id);
 
             if (model_depth != NA_INTEGER) {
-                event_name.append("^").append(std::to_string(model_depth));
+                // subtract 1 to account for the reflective operation closure
+                event_name.append("^").append(std::to_string(model_depth - 1));
             }
 
             env->add_event(event_name);
