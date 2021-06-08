@@ -2067,6 +2067,8 @@ void subset_or_subassign_callback(instrumentr_tracer_t tracer,
             instrumentr_value_as_builtin(function));
     }
 
+    env->add_event(fun_name);
+
     int source_fun_id_1;
     int source_call_id_1;
     int source_fun_id_2;
