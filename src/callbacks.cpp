@@ -526,7 +526,7 @@ void handle_builtin_environment_access(instrumentr_state_t state,
 
         SEXP r_x = CAR(r_arguments);
 
-        std::string x_type = get_sexp_type(r_x);
+        x_type = get_sexp_type(r_x);
 
         if (x_type == "integer") {
             x_int = INTEGER_ELT(r_x, 0);
@@ -543,9 +543,9 @@ void handle_builtin_environment_access(instrumentr_state_t state,
 
         SEXP r_which = CAR(r_arguments);
 
-        std::string which_type = get_sexp_type(r_which);
+        which_type = get_sexp_type(r_which);
 
-        int which = NA_INTEGER;
+        which = NA_INTEGER;
 
         if (TYPEOF(r_which) == REALSXP) {
             which = REAL_ELT(r_which, 0);
