@@ -1935,6 +1935,9 @@ void tracing_entry_callback(instrumentr_tracer_t tracer,
     for (auto packs: packages) {
         analyze_package_environment(state, env_table, packs, "package");
     }
+
+    env_table.insert(instrumentr_state_get_global_env(state));
+    env_table.insert(instrumentr_state_get_empty_env(state));
 }
 
 void tracing_exit_callback(instrumentr_tracer_t tracer,
