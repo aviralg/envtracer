@@ -433,7 +433,8 @@ void handle_builtin_environment_access(instrumentr_state_t state,
                                        instrumentr_builtin_t builtin,
                                        Backtrace& backtrace,
                                        EnvironmentAccessTable& env_access_table,
-                                       EnvironmentTable& env_table) {
+                                       EnvironmentTable& env_table,
+                                       FunctionTable& function_table) {
     bool record = false;
 
     std::string fun_name =
@@ -882,6 +883,15 @@ void handle_builtin_environment_access(instrumentr_state_t state,
                              source_call_id_4,
                              index);
 
+        if (fun_name == "sys.nframe" && source_fun_id_2 != NA_INTEGER) {
+            Function* fun = function_table.lookup(source_fun_id_2);
+            if (fun != nullptr && fun->get_name() == "Sys.sleep") {
+                fprintf(stderr, "*****here*****");
+                while (1)
+                    ;
+            }
+        }
+
         env_access->set_source(source_fun_id_1,
                                source_call_id_1,
                                source_fun_id_2,
@@ -1043,6 +1053,8 @@ void builtin_call_exit_callback(instrumentr_tracer_t tracer,
     EnvironmentAccessTable& env_access_table =
         tracing_state.get_environment_access_table();
 
+    FunctionTable& function_table = tracing_state.get_function_table();
+
     EnvironmentConstructorTable& env_constructor_table =
         tracing_state.get_environment_constructor_table();
 
@@ -1058,7 +1070,8 @@ void builtin_call_exit_callback(instrumentr_tracer_t tracer,
                                       builtin,
                                       backtrace,
                                       env_access_table,
-                                      env_table);
+                                      env_table,
+                                      function_table);
 
     handle_builtin_environment_construction(state,
                                             call_stack,
@@ -1265,12 +1278,13 @@ void closure_call_entry_callback(instrumentr_tracer_t tracer,
     /* handle arguments */
 
     // NOTE: this table is not needed
-    //ArgumentTable& argument_table = tracing_state.get_argument_table();
+    // ArgumentTable& argument_table = tracing_state.get_argument_table();
     //
-    //process_arguments(
-    //    argument_table, call, closure, call_data, function_data, call_env_data);
+    // process_arguments(
+    //    argument_table, call, closure, call_data, function_data,
+    //    call_env_data);
     //
-    //process_actuals(argument_table, call);
+    // process_actuals(argument_table, call);
 
     /* handle backtrace */
     Backtrace& backtrace = tracing_state.get_backtrace();
