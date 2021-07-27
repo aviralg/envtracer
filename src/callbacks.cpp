@@ -2140,7 +2140,13 @@ void process_reads_and_writes(instrumentr_state_t state,
     std::string fun_name = ENVTRACER_NA_STRING;
     std::string pack_name = ENVTRACER_NA_STRING;
     int call_id = NA_INTEGER;
-    int frame_index = event == "S" ? 7 : 3;
+    int frame_index = 3;
+
+    if (event == "ls") {
+        frame_index = 7;
+    } else if (event == "R") {
+        frame_index = 5;
+    }
 
     get_call_info(call_stack,
                   frame_index,
@@ -2158,7 +2164,7 @@ void process_reads_and_writes(instrumentr_state_t state,
          (event == "D" && (fun_name == "assign")) ||
          (event == "E" && (fun_name == "exists")) ||
          (event == "R" && (fun_name == "remove" || fun_name == "rm")) ||
-         (event == "S" && (fun_name == "ls" || fun_name == "objects")))) {
+         (event == "ls" && (fun_name == "ls" || fun_name == "objects")))) {
         record = true;
 
         /* get0 is called by dynGet */
