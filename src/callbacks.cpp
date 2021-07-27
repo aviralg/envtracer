@@ -883,15 +883,6 @@ void handle_builtin_environment_access(instrumentr_state_t state,
                              source_call_id_4,
                              index);
 
-        if (fun_name == "sys.nframe" && source_fun_id_2 != NA_INTEGER) {
-            Function* fun = function_table.lookup(source_fun_id_2);
-            if (fun != nullptr && fun->get_name() == "Sys.sleep") {
-                fprintf(stderr, "*****here*****");
-                while (1)
-                    ;
-            }
-        }
-
         env_access->set_source(source_fun_id_1,
                                source_call_id_1,
                                source_fun_id_2,
